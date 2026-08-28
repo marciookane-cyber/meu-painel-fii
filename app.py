@@ -44,8 +44,8 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-# Lista completa de FIIs (atualizado PMALL11 e IRIM11)
-fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
+# Lista completa de FIIs (atualizado PMLL11 e IRIM11)
+fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
 # Busca Cotações Atuais e P/VP via Yahoo Finance (B3)
@@ -70,14 +70,14 @@ cotacoes_atuais = {t: dados_b3[t]["preco"] for t in fiis}
 pvp_atuais = {t: dados_b3[t]["pvp"] for t in fiis}
 
 
-# Mapeamento de Metas (PMALL11 atualizado, IRIM11 mantido em Stand-by)
+# Mapeamento de Metas (PMLL11 atualizado, IRIM11 mantido em Stand-by)
 def obter_meta(row):
     ticker = row["fii"]
     metas_fixas = {
         "ALZR11": 1500,
         "XPML11": 150,
         "GGRC11": 1500,
-        "PMALL11": 150,
+        "PMLL11": 150,
         "BTLG11": 150,
         "BRCO11": 150,
     }
