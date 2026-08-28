@@ -48,31 +48,18 @@ for col in colunas_numericas:
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
-# Busca Cotações Atuais e P/VP via Yahoo Finance (B3) com fallback inteligente
+# Busca Cotações Atuais e P/VP via Yahoo Finance (B3)
 @st.cache_data(ttl=300)
 def obter_dados_b3(tickers):
     dados = {}
     for t in tickers:
         try:
             ticker_b3 = f"{t}.SA"
-            obj_ticker = yf.Ticker(ticker_b3)
-            info = obj_ticker.info
-            fast_info = obj_ticker.fast_info
-
-            # Preço Atual
-            price = float(fast_info.last_price) if fast_info.last_price else 0.0
-
-            # P/VP via campo direto ou cálculo (Cotação / Valor Patrimonial)
-            pvp = info.get("priceToBook", None)
-            if pvp is None or pvp == 0:
-                book_value = info.get("bookValue", 0.0)
-                if book_value and book_value > 0 and price > 0:
-                    pvp = price / book_value
-                else:
-                    pvp = 0.0
-
-            dados[t] = {"preco": price, "pvp": float(pvp)}
-        except Exception:
+            info = yf.Ticker(ticker_b3).fast_info
+            price = float(info.get("lastPrice", 0.0))
+            pvp = float(info.get("priceToBook", 0.0))
+            dados[t] = {"preco": price, "pvp": pvp}
+        except:
             dados[t] = {"preco": 0.0, "pvp": 0.0}
     return dados
 
