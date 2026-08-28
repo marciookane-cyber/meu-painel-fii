@@ -1,7 +1,7 @@
+import re
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
 # 0. CONFIGURAÇÃO DA PÁGINA
@@ -23,23 +23,42 @@ METAS_COTAS = {
     "IRIM11": 163,  # Stand-by / 100% Concluído
 }
 
-# ⚠️ ALTERE AQUI: Cole o link completo da sua planilha do Google Sheets entre as aspas:
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1fbj9LrGZScPGZ8mHTqsDshS01pPPFjEu0pIZFmwAUDg/edit?usp=sharing"
+# ⚠️ INSIRA AQUI O LINK DA SUA PLANILHA:
+URL_PLANILHA = "COLE_AQUI_A_URL_DA_SUA_PLANILHA"
 
 # -----------------------------------------------------------------------------
-# 2. CONEXÃO E CARREGAMENTO DOS DADOS (GOOGLE SHEETS)
+# 2. CARREGAMENTO DOS DADOS VIA DOWNLOAD DIRETO EM CSV
 # -----------------------------------------------------------------------------
-conn = st.connection("gsheets", type=GSheetsConnection)
+
+
+def extrair_sheet_id(url):
+    match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
+    return match.group(1) if match else None
 
 
 @st.cache_data(ttl=60)
-def load_data():
-    # Lê a aba 'Carteira' usando a URL direta
-    df = conn.read(spreadsheet=URL_PLANILHA, worksheet="Carteira")
-    return df
+def load_data(url):
+    sheet_id = extrair_sheet_id(url)
+    if not sheet_id or "COLE_AQUI" in url:
+        st.error(
+            "⚠️ Por favor, cole a URL válida da sua planilha na variável URL_PLANILHA no código."
+        )
+        st.stop()
+
+    # Monta a URL direta para exportar a aba "Carteira" em formato CSV
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Carteira"
+
+    try:
+        df = pd.read_csv(csv_url)
+        return df
+    except Exception as e:
+        st.error(
+            "❌ Erro ao acessar a planilha. Certifique-se de que o acesso da planilha está configurado para 'Qualquer pessoa com o link'."
+        )
+        st.stop()
 
 
-df_carteira = load_data()
+df_carteira = load_data(URL_PLANILHA)
 
 
 # -----------------------------------------------------------------------------
@@ -78,7 +97,7 @@ market_data = fetch_market_data(tickers_list)
 # -----------------------------------------------------------------------------
 # 4. TRATAMENTO E CÁLCULOS DOS DADOS
 # -----------------------------------------------------------------------------
-# Compatibilidade de colunas (Ticker ou FII)
+# Trata nome da coluna principal
 if "FII" in df_carteira.columns and "Ticker" not in df_carteira.columns:
     df_carteira["Ticker"] = df_carteira["FII"]
 
@@ -90,7 +109,7 @@ df_carteira["P/VP"] = df_carteira["Ticker"].map(
 )
 df_carteira["Meta"] = df_carteira["Ticker"].map(METAS_COTAS)
 
-# Trata Cotas e Preço Médio para números
+# Mapeia dinamicamente os nomes das colunas de Cotas e Preço Médio
 col_cotas = "Cotas" if "Cotas" in df_carteira.columns else "Cotas Atuais"
 col_pm = (
     "Preço Médio (R$)"
