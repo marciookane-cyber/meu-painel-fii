@@ -48,26 +48,22 @@ for col in colunas_numericas:
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
-# Busca Cotações Atuais e P/VP via Yahoo Finance (B3)
+# Busca Cotações Atuais via Yahoo Finance (B3)
 @st.cache_data(ttl=300)
-def obter_dados_b3(tickers):
+def obter_cotacoes_b3(tickers):
     dados = {}
     for t in tickers:
         try:
             ticker_b3 = f"{t}.SA"
             info = yf.Ticker(ticker_b3).fast_info
             price = float(info.get("lastPrice", 0.0))
-            pvp = float(info.get("priceToBook", 0.0))
-            dados[t] = {"preco": price, "pvp": pvp}
+            dados[t] = price
         except:
-            dados[t] = {"preco": 0.0, "pvp": 0.0}
+            dados[t] = 0.0
     return dados
 
 
-dados_b3 = obter_dados_b3(fiis)
-
-cotacoes_atuais = {t: dados_b3[t]["preco"] for t in fiis}
-pvp_atuais = {t: dados_b3[t]["pvp"] for t in fiis}
+cotacoes_atuais = obter_cotacoes_b3(fiis)
 
 
 # Mapeamento de Metas (PMALL11 atualizado, IRIM11 mantido em Stand-by)
@@ -90,7 +86,6 @@ def obter_meta(row):
 
 df_carteira["meta"] = df_carteira.apply(obter_meta, axis=1)
 df_carteira["cotacao_atual"] = df_carteira["fii"].map(cotacoes_atuais)
-df_carteira["pvp"] = df_carteira["fii"].map(pvp_atuais)
 
 # Usar preço médio caso a cotação em tempo real venha zerada
 df_carteira["cotacao_atual"] = df_carteira.apply(
@@ -513,7 +508,7 @@ with tab4:
     st.plotly_chart(fig_sim, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# TABELA DETALHADA COM P/VP
+# TABELA DETALHADA
 # ------------------------------------------------------------------------------
 st.markdown("### 📋 Tabela Completa de Posição")
 
@@ -523,7 +518,6 @@ df_exibicao = df_carteira[[
     "meta",
     "preco_medio",
     "cotacao_atual",
-    "pvp",
     "patrimonio_atual",
     "provento_mensal_cota",
     "dy_mensal_pct",
@@ -538,7 +532,6 @@ df_exibicao.columns = [
     "Meta",
     "Preço Médio (R$)",
     "Cotação Atual (R$)",
-    "P/VP",
     "Patrimônio (R$)",
     "Provento/Cota (R$)",
     "Rendimento Mensal (%)",
@@ -551,7 +544,6 @@ st.dataframe(
     df_exibicao.style.format({
         "Preço Médio (R$)": "R$ {:.2f}",
         "Cotação Atual (R$)": "R$ {:.2f}",
-        "P/VP": "{:.2f}",
         "Patrimônio (R$)": "R$ {:.2f}",
         "Provento/Cota (R$)": "R$ {:.2f}",
         "Rendimento Mensal (%)": "{:.2f}%",
