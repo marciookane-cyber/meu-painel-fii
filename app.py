@@ -24,7 +24,7 @@ METAS_COTAS = {
 }
 
 # ⚠️ INSIRA AQUI O LINK DA SUA PLANILHA:
-URL_PLANILHA = "COLE_AQUI_A_URL_DA_SUA_PLANILHA"
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1fbj9LrGZScPGZ8mHTqsDshS01pPPFjEu0pIZFmwAUDg/edit?usp=sharing"
 
 # -----------------------------------------------------------------------------
 # 2. CARREGAMENTO DOS DADOS VIA DOWNLOAD DIRETO EM CSV
