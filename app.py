@@ -1,7 +1,7 @@
-import re
 import pandas as pd
 import streamlit as st
 import yfinance as yf
+from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
 # 0. CONFIGURAÇÃO DA PÁGINA
@@ -27,64 +27,43 @@ METAS_COTAS = {
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1fbj9LrGZScPGZ8mHTqsDshS01pPPFjEu0pIZFmwAUDg/edit?usp=sharing"
 
 # -----------------------------------------------------------------------------
-# 2. CARREGAMENTO DOS DADOS VIA DOWNLOAD DIRETO EM CSV
+# 2. CONEXÃO E CARREGAMENTO DOS DADOS (STREAMLIT GSHEETS)
 # -----------------------------------------------------------------------------
-
-
-def extrair_sheet_id(url):
-    match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
-    return match.group(1) if match else None
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 
 @st.cache_data(ttl=60)
-def load_data(url):
-    sheet_id = extrair_sheet_id(url)
-    if not sheet_id or "COLE_AQUI" in url:
+def load_data():
+    if "COLE_AQUI" in URL_PLANILHA:
         st.error(
-            "⚠️ Por favor, cole a URL válida da sua planilha na variável URL_PLANILHA no código."
+            "⚠️ Cole a URL da sua planilha na variável URL_PLANILHA no código."
         )
         st.stop()
 
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Carteira"
-
-    try:
-        df = pd.read_csv(csv_url)
-        # Limpa espaços extras nos nomes das colunas (ex: "FII " vira "FII")
-        df.columns = df.columns.astype(str).str.strip()
-        return df
-    except Exception:
-        st.error(
-            "❌ Erro ao acessar a planilha. Certifique-se de que o acesso da planilha está configurado para 'Qualquer pessoa com o link'."
-        )
-        st.stop()
+    # Lê a aba 'Carteira' preservando a estrutura exata do Google Sheets
+    df = conn.read(spreadsheet=URL_PLANILHA, worksheet="Carteira")
+    return df
 
 
-df_carteira = load_data(URL_PLANILHA)
+df_carteira = load_data()
 
 # -----------------------------------------------------------------------------
-# 3. IDENTIFICAÇÃO AUTOMÁTICA DA COLUNA DE TICKERS
+# 3. PADRONIZAÇÃO DE COLUNAS
 # -----------------------------------------------------------------------------
-# Procura qual nome de coluna existe na planilha para os FIIs
-col_ticker_original = None
-possiveis_nomes = ["Ticker", "FII", "FIIs", "Ativo", "Código", "Carga"]
+# Limpa espaços extras nos nomes das colunas da planilha
+df_carteira.columns = df_carteira.columns.astype(str).str.strip()
 
-for nome in possiveis_nomes:
-    for col in df_carteira.columns:
-        if col.lower() == nome.lower():
-            col_ticker_original = col
-            break
-    if col_ticker_original:
-        break
-
-if not col_ticker_original:
-    st.error(
-        f"❌ Não encontramos uma coluna de tickers na planilha. Colunas encontradas: {list(df_carteira.columns)}"
-    )
-    st.stop()
-
-# Padroniza criando a coluna 'Ticker'
+# Identifica a coluna do código do FII (Ticker / FII)
+col_fii = next(
+    (
+        c
+        for c in df_carteira.columns
+        if c.lower() in ["fii", "ticker", "fiis", "ativo"]
+    ),
+    df_carteira.columns[0],
+)
 df_carteira["Ticker"] = (
-    df_carteira[col_ticker_original].astype(str).str.strip()
+    df_carteira[col_fii].astype(str).str.strip().str.upper()
 )
 
 # -----------------------------------------------------------------------------
@@ -104,7 +83,7 @@ def fetch_market_data(tickers):
 
             cotacao = fast_info.last_price if fast_info.last_price else 0.0
 
-            # Tenta pegar o P/VP direto ou calcula (Cotação / VP)
+            # Busca P/VP diretamente ou calcula Cotação / VP
             pvp = info.get("priceToBook", None)
             if pvp is None or pvp == 0:
                 book_value = info.get("bookValue", 0.0)
@@ -123,7 +102,7 @@ tickers_list = list(METAS_COTAS.keys())
 market_data = fetch_market_data(tickers_list)
 
 # -----------------------------------------------------------------------------
-# 5. TRATAMENTO E CÁLCULOS DOS DADOS
+# 5. CÁLCULOS E REGRAS DE NEGÓCIO
 # -----------------------------------------------------------------------------
 df_carteira["Cotação Atual (R$)"] = df_carteira["Ticker"].map(
     lambda x: market_data.get(x, {}).get("cotacao", 0.0)
@@ -133,19 +112,23 @@ df_carteira["P/VP"] = df_carteira["Ticker"].map(
 )
 df_carteira["Meta"] = df_carteira["Ticker"].map(METAS_COTAS)
 
-# Mapeamento inteligente para a coluna de Cotas
-col_cotas = None
-for c in df_carteira.columns:
-    if c.lower() in ["cotas", "cotas atuais", "quantidade", "qtd"]:
-        col_cotas = c
-        break
-
-# Mapeamento inteligente para a coluna de Preço Médio
-col_pm = None
-for c in df_carteira.columns:
-    if "preço" in c.lower() or "pm" in c.lower() or "medio" in c.lower():
-        col_pm = c
-        break
+# Mapeia colunas de Cotas e Preço Médio da planilha
+col_cotas = next(
+    (
+        c
+        for c in df_carteira.columns
+        if c.lower() in ["cotas", "cotas atuais", "qtd"]
+    ),
+    None,
+)
+col_pm = next(
+    (
+        c
+        for c in df_carteira.columns
+        if "preço" in c.lower() or "pm" in c.lower() or "medio" in c.lower()
+    ),
+    None,
+)
 
 df_carteira["Cotas"] = pd.to_numeric(
     df_carteira[col_cotas] if col_cotas else 0, errors="coerce"
@@ -171,7 +154,7 @@ df_carteira["Progresso (%)"] = (
     (df_carteira["Cotas"] / df_carteira["Meta"]) * 100
 ).clip(upper=100)
 
-# Regra IRIM11 (Stand-by)
+# Regra Especial IRIM11 (Stand-by)
 df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Progresso (%)"] = 100.0
 df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Cotas Faltantes"] = 0
 df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Déficit Financeiro (R$)"] = (
@@ -181,7 +164,7 @@ df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Déficit Financeiro (R$)"] =
 df_carteira["FII"] = df_carteira["Ticker"]
 
 # -----------------------------------------------------------------------------
-# 6. CARDS DE RESUMO (KPIS)
+# 6. KPIS (CARDS DO TOPO)
 # -----------------------------------------------------------------------------
 patrimonio_total = df_carteira["Patrimônio (R$)"].sum()
 total_investido = df_carteira["Valor Investido"].sum()
@@ -251,7 +234,7 @@ else:
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 8. TABELA COMPLETA DE POSIÇÃO
+# 8. TABELA COMPLETA DE POSIÇÃO (VISUAL EXATO DA IMAGEM)
 # -----------------------------------------------------------------------------
 st.subheader("📋 Tabela Completa de Posição")
 
@@ -264,13 +247,19 @@ cols_exibir = [
     "P/VP",
     "Patrimônio (R$)",
 ]
-if "Provento/Cota (R$)" in df_carteira.columns:
-    cols_exibir.append("Provento/Cota (R$)")
+
+# Inclui colunas adicionais da sua planilha se existirem (ex: Provento/Cota)
+for c in df_carteira.columns:
+    if "provento" in c.lower() or "rendimento" in c.lower():
+        if c not in cols_exibir:
+            cols_exibir.append(c)
 
 st.dataframe(
     df_carteira[cols_exibir],
     use_container_width=True,
     column_config={
+        "Cotas": st.column_config.NumberColumn(format="%d"),
+        "Meta": st.column_config.NumberColumn(format="%d"),
         "Preço Médio (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
         "Cotação Atual (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
         "Patrimônio (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
