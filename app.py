@@ -97,6 +97,15 @@ df_carteira["lucro_ganho_capital"] = (
 df_carteira["dividendo_mensal_total"] = (
     df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
 )
+
+# Cálculo do Dividend Yield Mensal (%) com base no Preço Médio ou Cotação
+df_carteira["dy_mensal_pct"] = df_carteira.apply(
+    lambda r: (r["provento_mensal_cota"] / r["cotacao_atual"] * 100)
+    if r["cotacao_atual"] > 0
+    else 0.0,
+    axis=1,
+)
+
 df_carteira["progresso_meta"] = (
     df_carteira["cotas"] / df_carteira["meta"]
 ) * 100
@@ -360,15 +369,19 @@ with tab3:
     st.subheader("🎯 Progresso rumo às Metas (150 / 1.500 cotas)")
     fig_prog, ax = plt.subplots(figsize=(10, 4))
 
-    menor_prog = df_carteira["progresso_meta"].min()
+    # Descobrir os 2 menores progressos para pintar de vermelho
+    dois_menores_valores = (
+        df_carteira["progresso_meta"].nsmallest(2).values.tolist()
+    )
+
     cores = []
     for p in df_carteira["progresso_meta"]:
         if p >= 100.0:
-            cores.append("#2ec4b6")
-        elif p == menor_prog:
-            cores.append("#e63946")
+            cores.append("#2ec4b6")  # Verde para meta atingida
+        elif p in dois_menores_valores:
+            cores.append("#e63946")  # Vermelho para os 2 mais atrasados
         else:
-            cores.append("#ff9f1c")
+            cores.append("#ff9f1c")  # Amarelo para os demais
 
     bars = ax.barh(
         df_carteira["fii"], df_carteira["progresso_meta"], color=cores
@@ -400,6 +413,7 @@ df_exibicao = df_carteira[[
     "cotacao_atual",
     "patrimonio_atual",
     "provento_mensal_cota",
+    "dy_mensal_pct",
     "dividendo_mensal_total",
     "dividendo_acumulado_historico",
     "progresso_meta",
@@ -413,6 +427,7 @@ df_exibicao.columns = [
     "Cotação Atual (R$)",
     "Patrimônio (R$)",
     "Provento/Cota (R$)",
+    "Rendimento Mensal (%)",
     "Rendimento Mensal (R$)",
     "Dividendos Acumulados (R$)",
     "Progresso (%)",
@@ -424,6 +439,7 @@ st.dataframe(
         "Cotação Atual (R$)": "R$ {:.2f}",
         "Patrimônio (R$)": "R$ {:.2f}",
         "Provento/Cota (R$)": "R$ {:.2f}",
+        "Rendimento Mensal (%)": "{:.2f}%",
         "Rendimento Mensal (R$)": "R$ {:.2f}",
         "Dividendos Acumulados (R$)": "R$ {:.2f}",
         "Progresso (%)": "{:.1f}%",
