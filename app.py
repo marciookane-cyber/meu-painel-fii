@@ -23,8 +23,8 @@ METAS_COTAS = {
     "IRIM11": 163,  # Stand-by / 100% Concluído
 }
 
-# ⚠️ INSIRA AQUI O LINK DA SUA PLANILHA:
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1fbj9LrGZScPGZ8mHTqsDshS01pPPFjEu0pIZFmwAUDg/edit?usp=sharing"
+# ⚠️ INSIRA AQUI O LINK COMPLETO DA SUA PLANILHA:
+URL_PLANILHA = "COLE_AQUI_A_URL_DA_SUA_PLANILHA"
 
 # -----------------------------------------------------------------------------
 # 2. CARREGAMENTO DOS DADOS VIA DOWNLOAD DIRETO EM CSV
@@ -45,13 +45,14 @@ def load_data(url):
         )
         st.stop()
 
-    # Monta a URL direta para exportar a aba "Carteira" em formato CSV
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Carteira"
 
     try:
         df = pd.read_csv(csv_url)
+        # Limpa espaços extras nos nomes das colunas (ex: "FII " vira "FII")
+        df.columns = df.columns.astype(str).str.strip()
         return df
-    except Exception as e:
+    except Exception:
         st.error(
             "❌ Erro ao acessar a planilha. Certifique-se de que o acesso da planilha está configurado para 'Qualquer pessoa com o link'."
         )
@@ -60,10 +61,37 @@ def load_data(url):
 
 df_carteira = load_data(URL_PLANILHA)
 
+# -----------------------------------------------------------------------------
+# 3. IDENTIFICAÇÃO AUTOMÁTICA DA COLUNA DE TICKERS
+# -----------------------------------------------------------------------------
+# Procura qual nome de coluna existe na planilha para os FIIs
+col_ticker_original = None
+possiveis_nomes = ["Ticker", "FII", "FIIs", "Ativo", "Código", "Carga"]
+
+for nome in possiveis_nomes:
+    for col in df_carteira.columns:
+        if col.lower() == nome.lower():
+            col_ticker_original = col
+            break
+    if col_ticker_original:
+        break
+
+if not col_ticker_original:
+    st.error(
+        f"❌ Não encontramos uma coluna de tickers na planilha. Colunas encontradas: {list(df_carteira.columns)}"
+    )
+    st.stop()
+
+# Padroniza criando a coluna 'Ticker'
+df_carteira["Ticker"] = (
+    df_carteira[col_ticker_original].astype(str).str.strip()
+)
 
 # -----------------------------------------------------------------------------
-# 3. BUSCA DE COTAÇÕES E P/VP EM TEMPO REAL (YFINANCE)
+# 4. BUSCA DE COTAÇÕES E P/VP EM TEMPO REAL (YFINANCE)
 # -----------------------------------------------------------------------------
+
+
 @st.cache_data(ttl=300)
 def fetch_market_data(tickers):
     data = {}
@@ -95,12 +123,8 @@ tickers_list = list(METAS_COTAS.keys())
 market_data = fetch_market_data(tickers_list)
 
 # -----------------------------------------------------------------------------
-# 4. TRATAMENTO E CÁLCULOS DOS DADOS
+# 5. TRATAMENTO E CÁLCULOS DOS DADOS
 # -----------------------------------------------------------------------------
-# Trata nome da coluna principal
-if "FII" in df_carteira.columns and "Ticker" not in df_carteira.columns:
-    df_carteira["Ticker"] = df_carteira["FII"]
-
 df_carteira["Cotação Atual (R$)"] = df_carteira["Ticker"].map(
     lambda x: market_data.get(x, {}).get("cotacao", 0.0)
 )
@@ -109,19 +133,25 @@ df_carteira["P/VP"] = df_carteira["Ticker"].map(
 )
 df_carteira["Meta"] = df_carteira["Ticker"].map(METAS_COTAS)
 
-# Mapeia dinamicamente os nomes das colunas de Cotas e Preço Médio
-col_cotas = "Cotas" if "Cotas" in df_carteira.columns else "Cotas Atuais"
-col_pm = (
-    "Preço Médio (R$)"
-    if "Preço Médio (R$)" in df_carteira.columns
-    else "Preço Médio"
-)
+# Mapeamento inteligente para a coluna de Cotas
+col_cotas = None
+for c in df_carteira.columns:
+    if c.lower() in ["cotas", "cotas atuais", "quantidade", "qtd"]:
+        col_cotas = c
+        break
+
+# Mapeamento inteligente para a coluna de Preço Médio
+col_pm = None
+for c in df_carteira.columns:
+    if "preço" in c.lower() or "pm" in c.lower() or "medio" in c.lower():
+        col_pm = c
+        break
 
 df_carteira["Cotas"] = pd.to_numeric(
-    df_carteira[col_cotas], errors="coerce"
+    df_carteira[col_cotas] if col_cotas else 0, errors="coerce"
 ).fillna(0)
 df_carteira["Preço Médio (R$)"] = pd.to_numeric(
-    df_carteira[col_pm], errors="coerce"
+    df_carteira[col_pm] if col_pm else 0, errors="coerce"
 ).fillna(0)
 
 # Cálculos Operacionais
@@ -151,7 +181,7 @@ df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Déficit Financeiro (R$)"] =
 df_carteira["FII"] = df_carteira["Ticker"]
 
 # -----------------------------------------------------------------------------
-# 5. CARDS DE RESUMO (KPIS)
+# 6. CARDS DE RESUMO (KPIS)
 # -----------------------------------------------------------------------------
 patrimonio_total = df_carteira["Patrimônio (R$)"].sum()
 total_investido = df_carteira["Valor Investido"].sum()
@@ -165,7 +195,7 @@ col3.metric("Resultado (Ganho de Capital)", f"R$ {lucro_prejuizo:,.2f}")
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 6. RECOMENDAÇÃO INTELIGENTE DE APORTE
+# 7. RECOMENDAÇÃO INTELIGENTE DE APORTE
 # -----------------------------------------------------------------------------
 st.subheader("💡 Recomendação Inteligente de Aporte")
 
@@ -221,7 +251,7 @@ else:
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 7. TABELA COMPLETA DE POSIÇÃO
+# 8. TABELA COMPLETA DE POSIÇÃO
 # -----------------------------------------------------------------------------
 st.subheader("📋 Tabela Completa de Posição")
 
