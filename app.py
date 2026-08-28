@@ -11,128 +11,124 @@ from streamlit_gsheets import GSheetsConnection
 # CONFIGURAÇÃO DA PÁGINA
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Painel de FIIs - Equalização",
-    page_icon="💰",
+    page_title="Painel de FIIs - TradeMap Style",
+    page_icon="🟢",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (MODO CLARO & ALTO CONTRASTE)
+# ESTILIZAÇÃO CSS CUSTOMIZADA (ESTILO TRADEMAP - DARK MODE + VERDE TRADEMAP)
 # ------------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-    /* Estilo Global e Fundo */
-    .main {
-        background-color: #ffffff;
+    /* Fundo Principal estilo TradeMap */
+    .stApp {
+        background-color: #0b0e14 !important;
+        color: #ffffff !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* Títulos e Subtítulos Nítidos em Negrito */
+    /* Tipografia Branca e Negrito */
+    h1, h2, h3, h4, h5, h6, p, label, span {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    
     h1 {
         font-weight: 900 !important;
         letter-spacing: -0.5px;
-        color: #0f172a !important;
-        margin-bottom: 0px !important;
-    }
-    h2, h3, h4 {
-        font-weight: 800 !important;
-        letter-spacing: -0.3px;
-        color: #0f172a !important;
-        opacity: 1 !important;
     }
 
-    /* Cards de Métricas */
+    /* Cards de Métricas estilo TradeMap */
     [data-testid="stMetric"] {
-        background: #f8fafc;
-        border: 1px solid #cbd5e1;
-        border-radius: 16px;
-        padding: 16px 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        background-color: #151922 !important;
+        border: 1px solid #232936 !important;
+        border-radius: 12px !important;
+        padding: 16px 20px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
     [data-testid="stMetric"]:hover {
         transform: translateY(-2px);
-        border-color: #0d9488;
+        border-color: #00d092 !important;
     }
     [data-testid="stMetricLabel"] {
-        font-size: 0.9rem !important;
-        color: #475569 !important;
+        font-size: 0.85rem !important;
+        color: #94a3b8 !important;
         font-weight: 800 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        opacity: 1 !important;
     }
     [data-testid="stMetricValue"] {
         font-size: 1.65rem !important;
-        font-weight: 800 !important;
-        color: #0f172a !important;
+        font-weight: 900 !important;
+        color: #ffffff !important;
     }
 
     /* Estilização das Abas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background-color: #f1f5f9;
+        background-color: #151922;
         padding: 6px;
         border-radius: 12px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #232936;
     }
     .stTabs [data-baseweb="tab"] {
         height: 42px;
         border-radius: 8px;
-        color: #334155 !important;
+        color: #94a3b8 !important;
         font-weight: 700 !important;
         border: none !important;
-        opacity: 1 !important;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ffffff !important;
-        color: #0d9488 !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        font-weight: 800 !important;
+        background-color: #232936 !important;
+        color: #00d092 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        font-weight: 900 !important;
     }
 
-    /* Estilização Completa das Tabelas */
+    /* Tabela de Posições */
     [data-testid="stDataFrame"] {
-        border: 1px solid #cbd5e1;
+        border: 1px solid #232936;
         border-radius: 12px;
         overflow: hidden;
     }
     [data-testid="stDataFrame"] div[role="columnheader"] {
-        background-color: #f1f5f9 !important;
-        color: #0f172a !important;
+        background-color: #151922 !important;
+        color: #ffffff !important;
         font-weight: 800 !important;
-        font-size: 0.95rem !important;
     }
     [data-testid="stDataFrame"] div[role="gridcell"] {
+        background-color: #0b0e14 !important;
+        color: #ffffff !important;
         font-weight: 600 !important;
-        color: #1e293b !important;
     }
 
-    /* Sidebar */
+    /* Menu Lateral */
     [data-testid="stSidebar"] {
-        background-color: #f8fafc;
-        border-right: 1px solid #cbd5e1;
+        background-color: #151922 !important;
+        border-right: 1px solid #232936 !important;
     }
     [data-testid="stSidebar"] label {
-        color: #0f172a !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
     }
 
-    /* Botões Principais */
+    /* Botões TradeMap Green */
     .stButton > button {
-        border-radius: 10px;
+        border-radius: 8px;
         font-weight: 800 !important;
         border: none;
-        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-        color: #ffffff !important;
+        background-color: #00d092 !important;
+        color: #0b0e14 !important;
         transition: all 0.3s ease;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #14b8a6 0%, #115e59 100%);
-        box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
-        color: #ffffff !important;
+        background-color: #00e6a1 !important;
+        box-shadow: 0 4px 15px rgba(0, 208, 146, 0.4);
+        color: #0b0e14 !important;
     }
     </style>
     """,
@@ -232,8 +228,8 @@ df_carteira["valor_restante_meta"] = df_carteira["cotas_faltantes"] * df_carteir
 # ------------------------------------------------------------------------------
 # CABEÇALHO DO DASHBOARD
 # ------------------------------------------------------------------------------
-st.title("📊 DASHBOARD DE FIIs")
-st.markdown("**Acompanhamento patrimonial e recomendação inteligente de aportes • Projeto Equalização**")
+st.title("🟢 TradeMap | Carteira de FIIs")
+st.markdown("**Acompanhamento patrimonial e inteligência de aportes • Projeto Equalização**")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
@@ -243,7 +239,7 @@ st.sidebar.header("💵 Configuração do Aporte")
 aporte_bolso = st.sidebar.number_input(
     "Aporte do Bolso (R$):",
     min_value=0.0,
-    value=1000.0,
+    value=1500.0,
     step=100.0,
     format="%.2f",
 )
@@ -399,7 +395,7 @@ p_col3.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS COM EIXOS E TEXTOS VISÍVEIS (MODO CLARO)
+# GRÁFICOS TRADEMAP STYLE (EIXOS E FONTES BRANCAS FORÇADOS)
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏆 Ranking Histórico",
@@ -419,30 +415,33 @@ with tab1:
         labels={"fii": "FII", "dividendo_acumulado_historico": "Total (R$)"},
     )
     fig_rank.update_traces(
-        marker_color="#2ec4b6",
+        marker_color="#00d092",
         texttemplate="R$ %{y:.2f}",
         textposition="outside",
         cliponaxis=False,
-        textfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
     )
     fig_rank.update_layout(
-        template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
         margin=dict(t=50, b=50, l=50, r=20),
         xaxis=dict(
             visible=True,
             showticklabels=True,
             type="category",
-            tickmode="linear",
-            tickfont=dict(color="#1e293b", size=14, family="Inter", weight="bold"),
-            title=dict(text="FII", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
         yaxis=dict(
             visible=True,
             showticklabels=True,
-            tickfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
-            title=dict(text="Total (R$)", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Total (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
     )
     st.plotly_chart(fig_rank, use_container_width=True)
@@ -458,30 +457,33 @@ with tab2:
         labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
     )
     fig_div.update_traces(
-        marker_color="#ff9f1c",
+        marker_color="#3b82f6",
         texttemplate="R$ %{y:.2f}",
         textposition="outside",
         cliponaxis=False,
-        textfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
     )
     fig_div.update_layout(
-        template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
         margin=dict(t=50, b=50, l=50, r=20),
         xaxis=dict(
             visible=True,
             showticklabels=True,
             type="category",
-            tickmode="linear",
-            tickfont=dict(color="#1e293b", size=14, family="Inter", weight="bold"),
-            title=dict(text="FII", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
         yaxis=dict(
             visible=True,
             showticklabels=True,
-            tickfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
-            title=dict(text="Rendimento (R$)", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Rendimento (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
     )
     st.plotly_chart(fig_div, use_container_width=True)
@@ -494,10 +496,10 @@ with tab3:
 
     def definir_cor(row):
         if row["progresso_meta"] >= 100.0:
-            return "#2ec4b6"
+            return "#00d092"
         elif row["progresso_meta"] in dois_menores:
-            return "#e63946"
-        return "#ff9f1c"
+            return "#ef4444"
+        return "#f59e0b"
 
     df_prog["cor"] = df_prog.apply(definir_cor, axis=1)
 
@@ -509,29 +511,32 @@ with tab3:
             text=[f"{p:.1f}%" for p in df_prog["progresso_meta"]],
             textposition="outside",
             cliponaxis=False,
-            textfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
+            textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             marker=dict(color=df_prog["cor"]),
         )
     )
     fig_prog_plotly.update_layout(
-        template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
         margin=dict(t=40, b=50, l=80, r=40),
         xaxis=dict(
             visible=True,
             showticklabels=True,
             range=[0, 120],
-            tickfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
-            title=dict(text="Conclusão (%)", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
         yaxis=dict(
             visible=True,
             showticklabels=True,
             type="category",
-            tickmode="linear",
             dtick=1,
-            tickfont=dict(color="#1e293b", size=14, family="Inter", weight="bold"),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            gridcolor="#232936",
         ),
     )
     st.plotly_chart(fig_prog_plotly, use_container_width=True)
@@ -559,28 +564,31 @@ with tab4:
             y=renda_proj,
             mode="lines+markers",
             name="Renda Mensal (R$)",
-            line=dict(color="#2ec4b6", width=3),
-            marker=dict(size=7, color="#2ec4b6"),
+            line=dict(color="#00d092", width=3),
+            marker=dict(size=7, color="#00d092"),
         )
     )
     fig_sim.update_layout(
-        template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
         margin=dict(t=40, b=50, l=50, r=20),
         xaxis=dict(
             visible=True,
             showticklabels=True,
             type="category",
-            tickmode="linear",
-            tickfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
-            title=dict(text="Período", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
         yaxis=dict(
             visible=True,
             showticklabels=True,
-            tickfont=dict(color="#1e293b", size=13, family="Inter", weight="bold"),
-            title=dict(text="Provento Mensal (R$)", font=dict(color="#1e293b", size=14, weight="bold")),
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
         ),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
