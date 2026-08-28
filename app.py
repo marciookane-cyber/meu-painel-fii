@@ -3,12 +3,16 @@ import streamlit as st
 import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 
-# Configuração da página
+# -----------------------------------------------------------------------------
+# 0. CONFIGURAÇÃO DA PÁGINA
+# -----------------------------------------------------------------------------
 st.set_page_config(page_title="Dashboard de FIIs & Equalização", layout="wide")
 
 st.title("📊 Dashboard de FIIs & Projeto Equalização")
 
-# 1. Configuração de Metas Fixas de Cotas
+# -----------------------------------------------------------------------------
+# 1. METAS FIXAS DE COTAS
+# -----------------------------------------------------------------------------
 METAS_COTAS = {
     "ALZR11": 1500,
     "GGRC11": 1500,
@@ -19,20 +23,28 @@ METAS_COTAS = {
     "IRIM11": 163,  # Stand-by / 100% Concluído
 }
 
-# 2. Conexão com Google Sheets via streamlit-gsheets
+# ⚠️ ALTERE AQUI: Cole o link completo da sua planilha do Google Sheets entre as aspas:
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1fbj9LrGZScPGZ8mHTqsDshS01pPPFjEu0pIZFmwAUDg/edit?usp=sharing"
+
+# -----------------------------------------------------------------------------
+# 2. CONEXÃO E CARREGAMENTO DOS DADOS (GOOGLE SHEETS)
+# -----------------------------------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 
 @st.cache_data(ttl=60)
 def load_data():
-    df = conn.read(worksheet="Carteira")
+    # Lê a aba 'Carteira' usando a URL direta
+    df = conn.read(spreadsheet=URL_PLANILHA, worksheet="Carteira")
     return df
 
 
 df_carteira = load_data()
 
 
-# 3. Busca de cotações e P/VP via yfinance
+# -----------------------------------------------------------------------------
+# 3. BUSCA DE COTAÇÕES E P/VP EM TEMPO REAL (YFINANCE)
+# -----------------------------------------------------------------------------
 @st.cache_data(ttl=300)
 def fetch_market_data(tickers):
     data = {}
@@ -45,10 +57,8 @@ def fetch_market_data(tickers):
 
             cotacao = fast_info.last_price if fast_info.last_price else 0.0
 
-            # Tenta capturar o priceToBook (P/VP) diretamente do yfinance
+            # Tenta pegar o P/VP direto ou calcula (Cotação / VP)
             pvp = info.get("priceToBook", None)
-
-            # Se vier nulo ou inválido, tenta calcular via bookValue
             if pvp is None or pvp == 0:
                 book_value = info.get("bookValue", 0.0)
                 if book_value and book_value > 0 and cotacao > 0:
@@ -65,7 +75,13 @@ def fetch_market_data(tickers):
 tickers_list = list(METAS_COTAS.keys())
 market_data = fetch_market_data(tickers_list)
 
-# 4. Processamento dos dados da Carteira
+# -----------------------------------------------------------------------------
+# 4. TRATAMENTO E CÁLCULOS DOS DADOS
+# -----------------------------------------------------------------------------
+# Compatibilidade de colunas (Ticker ou FII)
+if "FII" in df_carteira.columns and "Ticker" not in df_carteira.columns:
+    df_carteira["Ticker"] = df_carteira["FII"]
+
 df_carteira["Cotação Atual (R$)"] = df_carteira["Ticker"].map(
     lambda x: market_data.get(x, {}).get("cotacao", 0.0)
 )
@@ -74,16 +90,22 @@ df_carteira["P/VP"] = df_carteira["Ticker"].map(
 )
 df_carteira["Meta"] = df_carteira["Ticker"].map(METAS_COTAS)
 
-# Trata quantidade atual e preço médio
+# Trata Cotas e Preço Médio para números
+col_cotas = "Cotas" if "Cotas" in df_carteira.columns else "Cotas Atuais"
+col_pm = (
+    "Preço Médio (R$)"
+    if "Preço Médio (R$)" in df_carteira.columns
+    else "Preço Médio"
+)
+
 df_carteira["Cotas"] = pd.to_numeric(
-    df_carteira["Cotas"], errors="coerce"
+    df_carteira[col_cotas], errors="coerce"
 ).fillna(0)
 df_carteira["Preço Médio (R$)"] = pd.to_numeric(
-    df_carteira["Preço Médio (R$)" if "Preço Médio (R$)" in df_carteira.columns else "Preço Médio"],
-    errors="coerce",
+    df_carteira[col_pm], errors="coerce"
 ).fillna(0)
 
-# Cálculos operacionais
+# Cálculos Operacionais
 df_carteira["Patrimônio (R$)"] = (
     df_carteira["Cotas"] * df_carteira["Cotação Atual (R$)"]
 )
@@ -107,11 +129,11 @@ df_carteira.loc[df_carteira["Ticker"] == "IRIM11", "Déficit Financeiro (R$)"] =
     0.0
 )
 
-# Rename simples para padronizar com a imagem
-if "FII" not in df_carteira.columns and "Ticker" in df_carteira.columns:
-    df_carteira["FII"] = df_carteira["Ticker"]
+df_carteira["FII"] = df_carteira["Ticker"]
 
-# 5. KPIs
+# -----------------------------------------------------------------------------
+# 5. CARDS DE RESUMO (KPIS)
+# -----------------------------------------------------------------------------
 patrimonio_total = df_carteira["Patrimônio (R$)"].sum()
 total_investido = df_carteira["Valor Investido"].sum()
 lucro_prejuizo = patrimonio_total - total_investido
@@ -123,7 +145,9 @@ col3.metric("Resultado (Ganho de Capital)", f"R$ {lucro_prejuizo:,.2f}")
 
 st.divider()
 
-# 6. Módulo de Recomendação Inteligente de Aporte
+# -----------------------------------------------------------------------------
+# 6. RECOMENDAÇÃO INTELIGENTE DE APORTE
+# -----------------------------------------------------------------------------
 st.subheader("💡 Recomendação Inteligente de Aporte")
 
 col_aporte1, col_aporte2 = st.columns(2)
@@ -177,10 +201,11 @@ else:
 
 st.divider()
 
-# 7. Tabela Completa de Posição
+# -----------------------------------------------------------------------------
+# 7. TABELA COMPLETA DE POSIÇÃO
+# -----------------------------------------------------------------------------
 st.subheader("📋 Tabela Completa de Posição")
 
-# Monta colunas presentes na imagem
 cols_exibir = [
     "FII",
     "Cotas",
