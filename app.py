@@ -44,7 +44,7 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-# Lista completa de FIIs (atualizado PMLL11 e IRIM11)
+# Lista completa de FIIs
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
@@ -70,7 +70,7 @@ cotacoes_atuais = {t: dados_b3[t]["preco"] for t in fiis}
 pvp_atuais = {t: dados_b3[t]["pvp"] for t in fiis}
 
 
-# Mapeamento de Metas (PMLL11 atualizado, IRIM11 mantido em Stand-by)
+# Mapeamento de Metas
 def obter_meta(row):
     ticker = row["fii"]
     metas_fixas = {
