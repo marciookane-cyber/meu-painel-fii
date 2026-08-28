@@ -43,7 +43,7 @@ st.markdown(
         opacity: 1 !important;
     }
 
-    /* Cards de Métricas (Textos e Rótulos Nítidos) */
+    /* Cards de Métricas */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #1e2638 0%, #111827 100%);
         border: 1px solid rgba(255, 255, 255, 0.15);
@@ -70,7 +70,7 @@ st.markdown(
         color: #ffffff !important;
     }
 
-    /* Estilização das Abas (Tabs) - Textos em Negrito */
+    /* Estilização das Abas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #161b22;
@@ -93,26 +93,24 @@ st.markdown(
         font-weight: 800 !important;
     }
 
-    /* Estilização Completa das Tabelas (Cabeçalhos e Linhas em Negrito) */
+    /* Estilização Completa das Tabelas */
     [data-testid="stDataFrame"] {
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px;
         overflow: hidden;
     }
-    /* Estilo para células de cabeçalho da tabela */
     [data-testid="stDataFrame"] div[role="columnheader"] {
         background-color: #1e293b !important;
         color: #ffffff !important;
         font-weight: 800 !important;
         font-size: 0.95rem !important;
     }
-    /* Estilo para texto dentro da tabela */
     [data-testid="stDataFrame"] div[role="gridcell"] {
         font-weight: 600 !important;
         color: #f8fafc !important;
     }
 
-    /* Sidebar - Rótulos e Títulos */
+    /* Sidebar */
     [data-testid="stSidebar"] {
         background-color: #12161f;
         border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -401,7 +399,7 @@ p_col3.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS (PLOTLY SYSTEM WITH HIGH CONTRAST)
+# GRÁFICOS INTERATIVOS (PLOTLY WITH PERMANENT LABELS & HIGH CONTRAST)
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏆 Ranking Histórico",
@@ -418,7 +416,7 @@ with tab1:
         df_rank_div,
         x="fii",
         y="dividendo_acumulado_historico",
-        text_auto=".2f",
+        text="dividendo_acumulado_historico",
         labels={"fii": "FII", "dividendo_acumulado_historico": "Total (R$)"},
         template="plotly_dark",
     )
@@ -432,8 +430,16 @@ with tab1:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
-        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
-        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        xaxis=dict(
+            type="category",
+            tickmode="linear",
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
+        yaxis=dict(
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="Total (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
         margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_rank, use_container_width=True)
@@ -446,7 +452,7 @@ with tab2:
         df_div_sorted,
         x="fii",
         y="dividendo_mensal_total",
-        text_auto=".2f",
+        text="dividendo_mensal_total",
         labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
         template="plotly_dark",
     )
@@ -460,8 +466,16 @@ with tab2:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
-        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
-        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        xaxis=dict(
+            type="category",
+            tickmode="linear",
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
+        yaxis=dict(
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="Rendimento (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
         margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_div, use_container_width=True)
@@ -497,8 +511,17 @@ with tab3:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
-        xaxis=dict(range=[0, 115], tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold"))),
-        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold")),
+        xaxis=dict(
+            range=[0, 115],
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
+        yaxis=dict(
+            type="category",
+            tickmode="linear",
+            dtick=1,
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+        ),
         margin=dict(t=20, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_prog_plotly, use_container_width=True)
@@ -535,8 +558,16 @@ with tab4:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
-        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold"))),
-        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold"))),
+        xaxis=dict(
+            type="category",
+            tickmode="linear",
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
+        yaxis=dict(
+            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+        ),
         margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
