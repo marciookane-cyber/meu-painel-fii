@@ -282,8 +282,9 @@ if len(df_pendentes) >= 2:
     c_rec1, c_rec2, c_troco = st.columns(3)
 
     with c_rec1:
-        st.success(
-            f"🥇 **1º Foco: {fii_1['fii']}** (Progresso:"
+        # Alterado de st.success para st.error para exibir caixa vermelha
+        st.error(
+            f"🎯 **1º Foco: {fii_1['fii']}** (Progresso:"
             f" {fii_1['progresso_meta']:.1f}%)"
         )
         st.write(f"• Comprar: **{cotas_fii1} cotas**")
@@ -291,8 +292,9 @@ if len(df_pendentes) >= 2:
         st.write(f"• Total a investir: **R$ {gasto_fii1:,.2f}**")
 
     with c_rec2:
-        st.warning(
-            f"🥈 **2º Foco: {fii_2['fii']}** (Progresso:"
+        # Alterado de st.warning para st.error para exibir caixa vermelha
+        st.error(
+            f"🎯 **2º Foco: {fii_2['fii']}** (Progresso:"
             f" {fii_2['progresso_meta']:.1f}%)"
         )
         st.write(f"• Comprar: **{cotas_fii2} cotas**")
@@ -307,9 +309,6 @@ if len(df_pendentes) >= 2:
         )
 else:
     st.success("🎉 Parabéns! Todos os seus FIIs atingiram as metas estipuladas!")
-
-st.markdown("---")
-
 # ------------------------------------------------------------------------------
 # GRÁFICOS INTERATIVOS
 # ------------------------------------------------------------------------------
