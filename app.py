@@ -11,19 +11,19 @@ from streamlit_gsheets import GSheetsConnection
 # CONFIGURAÇÃO DA PÁGINA
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Painel de FIIs - TradeMap Style",
-    page_icon="🟢",
+    page_title="Painel de FIIs - Equalização",
+    page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (ESTILO TRADEMAP - DARK MODE + VERDE TRADEMAP)
+# ESTILIZAÇÃO CSS CUSTOMIZADA (DARK MODE TRADEMAP STYLE)
 # ------------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-    /* Fundo Principal estilo TradeMap */
+    /* Fundo Principal */
     .stApp {
         background-color: #0b0e14 !important;
         color: #ffffff !important;
@@ -41,7 +41,7 @@ st.markdown(
         letter-spacing: -0.5px;
     }
 
-    /* Cards de Métricas estilo TradeMap */
+    /* Cards de Métricas */
     [data-testid="stMetric"] {
         background-color: #151922 !important;
         border: 1px solid #232936 !important;
@@ -116,7 +116,7 @@ st.markdown(
         font-weight: 700 !important;
     }
 
-    /* Botões TradeMap Green */
+    /* Botões */
     .stButton > button {
         border-radius: 8px;
         font-weight: 800 !important;
@@ -228,8 +228,8 @@ df_carteira["valor_restante_meta"] = df_carteira["cotas_faltantes"] * df_carteir
 # ------------------------------------------------------------------------------
 # CABEÇALHO DO DASHBOARD
 # ------------------------------------------------------------------------------
-st.title("🟢 TradeMap | Carteira de FIIs")
-st.markdown("**Acompanhamento patrimonial e inteligência de aportes • Projeto Equalização**")
+st.title("📊 DASHBOARD DE FIIs")
+st.markdown("**Acompanhamento patrimonial e recomendação inteligente de aportes • Projeto Equalização**")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
@@ -395,7 +395,7 @@ p_col3.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS TRADEMAP STYLE (EIXOS E FONTES BRANCAS FORÇADOS)
+# GRÁFICOS INTERATIVOS
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏆 Ranking Histórico",
