@@ -18,7 +18,7 @@ st.set_page_config(
 st.title("📊 DASHBOARD DE FIIs & PROJETO EQUALIZAÇÃO")
 st.markdown(
     "Acompanhe patrimônio, dividendos mensais, acumulado histórico, preço"
-    " médio, cotação em tempo real e recomendação de aportes."
+    " médio, cotação em tempo real e recomendação inteligete de aportes."
 )
 
 # Conexão com Google Sheets
@@ -69,7 +69,8 @@ dados_b3 = obter_dados_b3(fiis)
 cotacoes_atuais = {t: dados_b3[t]["preco"] for t in fiis}
 pvp_atuais = {t: dados_b3[t]["pvp"] for t in fiis}
 
-# Mapeamento de Metas (Para o IRIM11, a meta é a quantidade atual de cotas para ficar em Stand-by)
+
+# Mapeamento de Metas (IRIM11 mantido em Stand-by = meta igual às cotas atuais)
 def obter_meta(row):
     ticker = row["fii"]
     metas_fixas = {
@@ -83,8 +84,7 @@ def obter_meta(row):
     if ticker in metas_fixas:
         return metas_fixas[ticker]
     elif ticker == "IRIM11":
-        # Meta dinâmica igual ao número de cotas para manter 100% de progresso
-        return row["cotas"] if row["cotas"] > 0 else 1
+        return row["cotas"] if row["cotas"] > 0 else 163
     return 150
 
 
@@ -123,8 +123,15 @@ df_carteira["dy_mensal_pct"] = df_carteira.apply(
     axis=1,
 )
 
+# Progresso % e Déficit Financeiro (R$) para atingir a meta
 df_carteira["progresso_meta"] = df_carteira.apply(
     lambda r: (r["cotas"] / r["meta"] * 100) if r["meta"] > 0 else 100.0, axis=1
+)
+df_carteira["cotas_faltantes"] = df_carteira.apply(
+    lambda r: max(0, int(r["meta"] - r["cotas"])), axis=1
+)
+df_carteira["valor_restante_meta"] = (
+    df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
 )
 
 # ------------------------------------------------------------------------------
@@ -239,7 +246,7 @@ col5.metric(
 st.markdown("---")
 
 # ------------------------------------------------------------------------------
-# PAINEL DE RECOMENDAÇÃO DE APORTE DO MÊS
+# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE DO MÊS (SUGESTÃO 1)
 # ------------------------------------------------------------------------------
 meses = [
     "Janeiro",
@@ -262,7 +269,8 @@ ano_atual = hoje.year
 aporte_total_disponivel = aporte_bolso + dividendos_mes_total
 
 st.subheader(
-    f"🎯 RECOMENDAÇÃO DE APORTE DO MÊS - {mes_atual_nome.upper()} / {ano_atual}"
+    f"🎯 RECOMENDAÇÃO INTELIGENTE DE APORTE - {mes_atual_nome.upper()} /"
+    f" {ano_atual}"
 )
 st.info(
     f"💰 **Aporte Total Disponível:** **R$ {aporte_total_disponivel:,.2f}** "
@@ -270,17 +278,25 @@ st.info(
     " dividendos do mês)"
 )
 
-# Filtra apenas os FIIs pendentes (IRIM11 fica fora pois estará em 100%)
-df_pendentes = df_carteira[df_carteira["progresso_meta"] < 100.0].sort_values(
-    by="progresso_meta", ascending=True
-)
+# Filtra apenas os FIIs com metas pendentes e com déficit financeiro
+df_pendentes = df_carteira[
+    (df_carteira["progresso_meta"] < 100.0)
+    & (df_carteira["valor_restante_meta"] > 0)
+].sort_values(by="valor_restante_meta", ascending=False)
 
 if len(df_pendentes) >= 2:
     fii_1 = df_pendentes.iloc[0]
     fii_2 = df_pendentes.iloc[1]
 
-    val_fii1 = aporte_total_disponivel * 0.60
-    val_fii2 = aporte_total_disponivel * 0.40
+    def1 = fii_1["valor_restante_meta"]
+    def2 = fii_2["valor_restante_meta"]
+    total_def = def1 + def2
+
+    pct1 = def1 / total_def if total_def > 0 else 0.5
+    pct2 = def2 / total_def if total_def > 0 else 0.5
+
+    val_fii1 = aporte_total_disponivel * pct1
+    val_fii2 = aporte_total_disponivel * pct2
 
     cotas_fii1 = (
         int(val_fii1 // fii_1["cotacao_atual"])
@@ -301,8 +317,8 @@ if len(df_pendentes) >= 2:
 
     with c_rec1:
         st.error(
-            f"🎯 **1º Foco: {fii_1['fii']}** (Progresso:"
-            f" {fii_1['progresso_meta']:.1f}%)"
+            f"🎯 **1º Foco (Maior Déficit): {fii_1['fii']}**\n"
+            f"• Faltam: R$ {def1:,.2f} ({fii_1['cotas_faltantes']} cotas)"
         )
         st.write(f"• Comprar: **{cotas_fii1} cotas**")
         st.write(f"• Preço Estimado: R$ {fii_1['cotacao_atual']:.2f}")
@@ -310,8 +326,8 @@ if len(df_pendentes) >= 2:
 
     with c_rec2:
         st.error(
-            f"🎯 **2º Foco: {fii_2['fii']}** (Progresso:"
-            f" {fii_2['progresso_meta']:.1f}%)"
+            f"🎯 **2º Foco: {fii_2['fii']}**\n"
+            f"• Faltam: R$ {def2:,.2f} ({fii_2['cotas_faltantes']} cotas)"
         )
         st.write(f"• Comprar: **{cotas_fii2} cotas**")
         st.write(f"• Preço Estimado: R$ {fii_2['cotacao_atual']:.2f}")
@@ -332,13 +348,6 @@ st.markdown("---")
 # PROJEÇÕES FUTURAS E PROJEÇÃO DE METAS
 # ------------------------------------------------------------------------------
 st.subheader("📈 Projeção do Projeto Equalização & Efeito Bola de Neve")
-
-df_carteira["cotas_faltantes"] = df_carteira.apply(
-    lambda r: max(0, r["meta"] - r["cotas"]), axis=1
-)
-df_carteira["valor_restante_meta"] = (
-    df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
-)
 
 total_valor_restante = df_carteira["valor_restante_meta"].sum()
 meta_rendimento_mensal_final = (
@@ -443,9 +452,9 @@ with tab3:
     cores = []
     for p in df_carteira["progresso_meta"]:
         if p >= 100.0:
-            cores.append("#2ec4b6")  # Verde para meta atingida ou Stand-by
+            cores.append("#2ec4b6")  # Verde para Stand-by / Meta 100%
         elif p in dois_menores_valores:
-            cores.append("#e63946")  # Vermelho para os 2 mais atrasados
+            cores.append("#e63946")  # Vermelho para os 2 focos atuais
         else:
             cores.append("#ff9f1c")  # Amarelo para os demais
 
