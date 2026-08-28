@@ -399,7 +399,7 @@ p_col3.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS (PLOTLY WITH PERMANENT LABELS & HIGH CONTRAST)
+# GRÁFICOS INTERATIVOS COM EIXOS E TEXTOS VISÍVEIS
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏆 Ranking Histórico",
@@ -416,31 +416,34 @@ with tab1:
         df_rank_div,
         x="fii",
         y="dividendo_acumulado_historico",
-        text="dividendo_acumulado_historico",
         labels={"fii": "FII", "dividendo_acumulado_historico": "Total (R$)"},
-        template="plotly_dark",
     )
     fig_rank.update_traces(
         marker_color="#2ec4b6",
         texttemplate="R$ %{y:.2f}",
         textposition="outside",
+        cliponaxis=False,
         textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
     )
     fig_rank.update_layout(
+        template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        margin=dict(t=50, b=40, l=40, r=20),
         xaxis=dict(
+            visible=True,
+            showticklabels=True,
             type="category",
             tickmode="linear",
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
             title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
         yaxis=dict(
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            visible=True,
+            showticklabels=True,
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             title=dict(text="Total (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
-        margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_rank, use_container_width=True)
 
@@ -452,31 +455,34 @@ with tab2:
         df_div_sorted,
         x="fii",
         y="dividendo_mensal_total",
-        text="dividendo_mensal_total",
         labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
-        template="plotly_dark",
     )
     fig_div.update_traces(
         marker_color="#ff9f1c",
         texttemplate="R$ %{y:.2f}",
         textposition="outside",
+        cliponaxis=False,
         textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
     )
     fig_div.update_layout(
+        template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        margin=dict(t=50, b=40, l=40, r=20),
         xaxis=dict(
+            visible=True,
+            showticklabels=True,
             type="category",
             tickmode="linear",
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
             title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
         yaxis=dict(
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            visible=True,
+            showticklabels=True,
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             title=dict(text="Rendimento (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
-        margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_div, use_container_width=True)
 
@@ -502,6 +508,7 @@ with tab3:
             orientation="h",
             text=[f"{p:.1f}%" for p in df_prog["progresso_meta"]],
             textposition="outside",
+            cliponaxis=False,
             textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             marker=dict(color=df_prog["cor"]),
         )
@@ -510,19 +517,22 @@ with tab3:
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        margin=dict(t=40, b=40, l=60, r=40),
         xaxis=dict(
-            range=[0, 115],
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            visible=True,
+            showticklabels=True,
+            range=[0, 120],
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
         yaxis=dict(
+            visible=True,
+            showticklabels=True,
             type="category",
             tickmode="linear",
             dtick=1,
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
         ),
-        margin=dict(t=20, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_prog_plotly, use_container_width=True)
 
@@ -557,18 +567,21 @@ with tab4:
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        margin=dict(t=40, b=40, l=40, r=20),
         xaxis=dict(
+            visible=True,
+            showticklabels=True,
             type="category",
             tickmode="linear",
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
         yaxis=dict(
-            tickfont=dict(color="#ffffff", size=13, weight="bold"),
+            visible=True,
+            showticklabels=True,
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
         ),
-        margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
 
