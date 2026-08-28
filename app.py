@@ -18,7 +18,7 @@ st.set_page_config(
 st.title("📊 DASHBOARD DE FIIs & PROJETO EQUALIZAÇÃO")
 st.markdown(
     "Acompanhe patrimônio, dividendos mensais, acumulado histórico, preço"
-    " médio, cotação em tempo real e recomendação inteligete de aportes."
+    " médio, cotação em tempo real e recomendação inteligente de aportes."
 )
 
 # Conexão com Google Sheets
@@ -44,8 +44,8 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-# Lista completa de FIIs (incluindo IRIM11)
-fiis = ["ALZR11", "XPML11", "GGRC11", "MALL11", "BTLG11", "BRCO11", "IRIM11"]
+# Lista completa de FIIs (atualizado PMALL11 e IRIM11)
+fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
 # Busca Cotações Atuais e P/VP via Yahoo Finance (B3)
@@ -70,14 +70,14 @@ cotacoes_atuais = {t: dados_b3[t]["preco"] for t in fiis}
 pvp_atuais = {t: dados_b3[t]["pvp"] for t in fiis}
 
 
-# Mapeamento de Metas (IRIM11 mantido em Stand-by = meta igual às cotas atuais)
+# Mapeamento de Metas (PMALL11 atualizado, IRIM11 mantido em Stand-by)
 def obter_meta(row):
     ticker = row["fii"]
     metas_fixas = {
         "ALZR11": 1500,
         "XPML11": 150,
         "GGRC11": 1500,
-        "MALL11": 150,
+        "PMALL11": 150,
         "BTLG11": 150,
         "BRCO11": 150,
     }
@@ -246,7 +246,7 @@ col5.metric(
 st.markdown("---")
 
 # ------------------------------------------------------------------------------
-# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE DO MÊS (SUGESTÃO 1)
+# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE DO MÊS
 # ------------------------------------------------------------------------------
 meses = [
     "Janeiro",
