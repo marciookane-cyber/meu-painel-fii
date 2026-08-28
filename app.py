@@ -23,6 +23,25 @@ st.markdown(
 conn = st.connection("gsheets", type=GSheetsConnection)
 data = conn.read(ttl="0s")
 
+# Copiar dados da planilha
+df_carteira = data.copy()
+
+# Tratamento para converter textos/vírgulas em números automaticamente
+colunas_numericas = [
+    "cotas",
+    "preco_medio",
+    "dy_anual (%)",
+    "provento_mensal_cota",
+    "dividendo_acumulado_historico",
+]
+
+for col in colunas_numericas:
+    if col in df_carteira.columns:
+        df_carteira[col] = pd.to_numeric(
+            df_carteira[col].astype(str).str.replace(",", "."),
+            errors="coerce",
+        ).fillna(0.0)
+
 # Metas fixas da carteira
 metas_dict = {
     "ALZR11": 1500,
@@ -44,7 +63,7 @@ def obter_cotacoes(tickers):
         try:
             ticker_b3 = f"{t}.SA"
             info = yf.Ticker(ticker_b3).fast_info
-            precos[t] = info["lastPrice"]
+            precos[t] = float(info["lastPrice"])
         except:
             precos[t] = 0.0
     return precos
@@ -52,25 +71,19 @@ def obter_cotacoes(tickers):
 
 cotacoes_atuais = obter_cotacoes(fiis)
 
-# Processar e mesclar dados da planilha
-df_carteira = data.copy()
+# Mapear metas e cotações
 df_carteira["meta"] = df_carteira["fii"].map(metas_dict)
 df_carteira["cotacao_atual"] = df_carteira["fii"].map(cotacoes_atuais)
 
-# Fallback se cotação falhar: usa o preço médio da planilha
-df_carteira["cotacao_atual"] = df_carteira["cotacao_atual"].fillna(
-    df_carteira["preco_medio"]
-)
+# Usar preço médio caso a cotação em tempo real venha zerada
 df_carteira["cotacao_atual"] = df_carteira.apply(
-    lambda r: r["preco_medio"] if r["cotacao_atual"] == 0 else r["cotacao_atual"],
+    lambda r: r["preco_medio"]
+    if r["cotacao_atual"] == 0 or pd.isna(r["cotacao_atual"])
+    else r["cotacao_atual"],
     axis=1,
 )
 
-# Garantir coluna de dividendo acumulado histórico
-if "dividendo_acumulado_historico" not in df_carteira.columns:
-    df_carteira["dividendo_acumulado_historico"] = 0.0
-
-# Cálculos do Dashboard
+# Cálculos da Carteira
 df_carteira["patrimonio_atual"] = (
     df_carteira["cotas"] * df_carteira["cotacao_atual"]
 )
@@ -81,7 +94,6 @@ df_carteira["lucro_ganho_capital"] = (
     df_carteira["patrimonio_atual"] - df_carteira["total_investido"]
 )
 
-# Multiplicação: Cotas x Provento por cota = Dividendo do Mês
 df_carteira["dividendo_mensal_total"] = (
     df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
 )
@@ -105,34 +117,36 @@ st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Atualizar Carteira")
 fii_selecionado = st.sidebar.selectbox("Selecione o FII:", fiis)
 
-row = df_carteira[df_carteira["fii"] == fii_selecionado].iloc[0]
+if fii_selecionado in df_carteira["fii"].values:
+    row = df_carteira[df_carteira["fii"] == fii_selecionado].iloc[0]
+    cota_val = int(row["cotas"])
+    pm_val = float(row["preco_medio"])
+    prov_val = float(row["provento_mensal_cota"])
+    acum_val = float(row["dividendo_acumulado_historico"])
+else:
+    cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
 nova_cota = st.sidebar.number_input(
-    "Quantidade de Cotas:", min_value=0, value=int(row["cotas"]), step=1
+    "Quantidade de Cotas:", min_value=0, value=cota_val, step=1
 )
 novo_pm = st.sidebar.number_input(
-    "Preço Médio (R$):",
-    min_value=0.0,
-    value=float(row["preco_medio"]),
-    step=0.10,
-    format="%.2f",
+    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f"
 )
 novo_provento = st.sidebar.number_input(
     "Último Provento por Cota (R$):",
     min_value=0.0,
-    value=float(row["provento_mensal_cota"]),
+    value=prov_val,
     step=0.01,
     format="%.2f",
 )
 novo_acumulado = st.sidebar.number_input(
     "Total de Dividendos Já Recebidos (R$):",
     min_value=0.0,
-    value=float(row["dividendo_acumulado_historico"]),
+    value=acum_val,
     step=10.0,
     format="%.2f",
 )
 
-# Botão para somar o dividendo deste mês ao acumulado histórico
 if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal no Acumulado"):
     df_carteira["dividendo_acumulado_historico"] += df_carteira[
         "dividendo_mensal_total"
@@ -288,7 +302,7 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS - PROGRESSO E RANKING DE DIVIDENDOS
+# GRÁFICOS INTERATIVOS
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3 = st.tabs([
     "🏆 Ranking de Dividendos Acumulados",
@@ -313,8 +327,6 @@ with tab1:
             "fii": "Fundo Imobiliário",
             "dividendo_acumulado_historico": "Total Acumulado (R$)",
         },
-        color="dividendo_acumulado_historico",
-        color_continuous_scale="Goldenrod",
         title="Ranking de Pagadores de Dividendos da Carteira",
     )
     fig_rank.update_traces(
@@ -337,8 +349,6 @@ with tab2:
             "fii": "Fundo Imobiliário",
             "dividendo_mensal_total": "Rendimento Mensal (R$)",
         },
-        color="dividendo_mensal_total",
-        color_continuous_scale="Viridis",
         title="Rendimento do Mês Atual por FII",
     )
     fig_div.update_traces(
