@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (FINTECH / DASHBOARD MODERNO)
+# ESTILIZAÇÃO CSS CUSTOMIZADA (FONTES EM NEGRITO & ALTO CONTRASTE)
 # ------------------------------------------------------------------------------
 st.markdown(
     """
@@ -29,92 +29,112 @@ st.markdown(
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* Titulos e Subtítulos */
+    /* Títulos e Subtítulos Nítidos em Negrito */
     h1 {
-        font-weight: 800 !important;
-        letter-spacing: -1px;
+        font-weight: 900 !important;
+        letter-spacing: -0.5px;
         color: #ffffff !important;
         margin-bottom: 0px !important;
     }
-    h2, h3 {
-        font-weight: 700 !important;
-        letter-spacing: -0.5px;
-        color: #f0f2f6 !important;
+    h2, h3, h4 {
+        font-weight: 800 !important;
+        letter-spacing: -0.3px;
+        color: #ffffff !important;
+        opacity: 1 !important;
     }
 
-    /* Cards de Métricas Personalizados */
+    /* Cards de Métricas (Textos e Rótulos Nítidos) */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #1e2638 0%, #111827 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 16px;
         padding: 16px 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
     [data-testid="stMetric"]:hover {
         transform: translateY(-2px);
-        border-color: rgba(46, 196, 182, 0.4);
+        border-color: rgba(46, 196, 182, 0.6);
     }
     [data-testid="stMetricLabel"] {
-        font-size: 0.85rem !important;
-        color: #94a3b8 !important;
-        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+        color: #e2e8f0 !important;
+        font-weight: 800 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        opacity: 1 !important;
     }
     [data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
+        font-size: 1.65rem !important;
+        font-weight: 800 !important;
         color: #ffffff !important;
     }
 
-    /* Estilização das Abas (Tabs) */
+    /* Estilização das Abas (Tabs) - Textos em Negrito */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #161b22;
         padding: 6px;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .stTabs [data-baseweb="tab"] {
         height: 42px;
         border-radius: 8px;
-        color: #94a3b8;
-        font-weight: 600;
+        color: #cbd5e1 !important;
+        font-weight: 700 !important;
         border: none !important;
+        opacity: 1 !important;
     }
     .stTabs [aria-selected="true"] {
         background-color: #1e293b !important;
         color: #2ec4b6 !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        font-weight: 800 !important;
+    }
+
+    /* Estilização Completa das Tabelas (Cabeçalhos e Linhas em Negrito) */
+    [data-testid="stDataFrame"] {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    /* Estilo para células de cabeçalho da tabela */
+    [data-testid="stDataFrame"] div[role="columnheader"] {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        font-size: 0.95rem !important;
+    }
+    /* Estilo para texto dentro da tabela */
+    [data-testid="stDataFrame"] div[role="gridcell"] {
+        font-weight: 600 !important;
+        color: #f8fafc !important;
+    }
+
+    /* Sidebar - Rótulos e Títulos */
+    [data-testid="stSidebar"] {
+        background-color: #12161f;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    [data-testid="stSidebar"] label {
+        color: #ffffff !important;
+        font-weight: 700 !important;
     }
 
     /* Botões Principais */
     .stButton > button {
         border-radius: 10px;
-        font-weight: 600;
+        font-weight: 800 !important;
         border: none;
         background: linear-gradient(135deg, #2ec4b6 0%, #208b82 100%);
-        color: #ffffff;
+        color: #ffffff !important;
         transition: all 0.3s ease;
     }
     .stButton > button:hover {
         background: linear-gradient(135deg, #32dbcb 0%, #25a095 100%);
-        box-shadow: 0 4px 12px rgba(46, 196, 182, 0.3);
-        color: #ffffff;
-    }
-
-    /* Tabela / Dataframe */
-    [data-testid="stDataFrame"] {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        overflow: hidden;
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #12161f;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 4px 12px rgba(46, 196, 182, 0.4);
+        color: #ffffff !important;
     }
     </style>
     """,
@@ -215,7 +235,7 @@ df_carteira["valor_restante_meta"] = df_carteira["cotas_faltantes"] * df_carteir
 # CABEÇALHO DO DASHBOARD
 # ------------------------------------------------------------------------------
 st.title("📊 DASHBOARD DE FIIs")
-st.caption("Acompanhamento patrimonial e recomendação inteligente de aportes • Projeto Equalização")
+st.markdown("**Acompanhamento patrimonial e recomendação inteligente de aportes • Projeto Equalização**")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
@@ -332,22 +352,22 @@ if len(df_pendentes) >= 2:
     with c_rec1:
         st.error(
             f"🎯 **1º Foco (Maior Déficit): {fii_1['fii']}**\n\n"
-            f"• Déficit restante: R$ {def1:,.2f} ({fii_1['cotas_faltantes']} cotas)\n"
-            f"• Comprar: **{cotas_fii1} cotas** (~R$ {fii_1['cotacao_atual']:.2f})\n"
-            f"• Subtotal: **R$ {gasto_fii1:,.2f}**"
+            f"• **Déficit restante:** R$ {def1:,.2f} ({fii_1['cotas_faltantes']} cotas)\n"
+            f"• **Comprar:** **{cotas_fii1} cotas** (~R$ {fii_1['cotacao_atual']:.2f})\n"
+            f"• **Subtotal:** **R$ {gasto_fii1:,.2f}**"
         )
 
     with c_rec2:
         st.error(
             f"🎯 **2º Foco: {fii_2['fii']}**\n\n"
-            f"• Déficit restante: R$ {def2:,.2f} ({fii_2['cotas_faltantes']} cotas)\n"
-            f"• Comprar: **{cotas_fii2} cotas** (~R$ {fii_2['cotacao_atual']:.2f})\n"
-            f"• Subtotal: **R$ {gasto_fii2:,.2f}**"
+            f"• **Déficit restante:** R$ {def2:,.2f} ({fii_2['cotas_faltantes']} cotas)\n"
+            f"• **Comprar:** **{cotas_fii2} cotas** (~R$ {fii_2['cotacao_atual']:.2f})\n"
+            f"• **Subtotal:** **R$ {gasto_fii2:,.2f}**"
         )
 
     with c_troco:
         st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
-        st.caption("💡 *Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.*")
+        st.caption("💡 **Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.**")
 else:
     st.success("🎉 Todas as metas ativas da carteira foram atingidas!")
 
@@ -381,7 +401,7 @@ p_col3.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS (PLOTLY SYSTEM)
+# GRÁFICOS INTERATIVOS (PLOTLY SYSTEM WITH HIGH CONTRAST)
 # ------------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏆 Ranking Histórico",
@@ -402,8 +422,20 @@ with tab1:
         labels={"fii": "FII", "dividendo_acumulado_historico": "Total (R$)"},
         template="plotly_dark",
     )
-    fig_rank.update_traces(marker_color="#2ec4b6", texttemplate="R$ %{y:.2f}", textposition="outside")
-    fig_rank.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=30, b=0, l=0, r=0))
+    fig_rank.update_traces(
+        marker_color="#2ec4b6",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+    )
+    fig_rank.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        margin=dict(t=30, b=0, l=0, r=0),
+    )
     st.plotly_chart(fig_rank, use_container_width=True)
 
 with tab2:
@@ -418,23 +450,34 @@ with tab2:
         labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
         template="plotly_dark",
     )
-    fig_div.update_traces(marker_color="#ff9f1c", texttemplate="R$ %{y:.2f}", textposition="outside")
-    fig_div.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=30, b=0, l=0, r=0))
+    fig_div.update_traces(
+        marker_color="#ff9f1c",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+    )
+    fig_div.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(font=dict(color="#ffffff", size=14, weight="bold"))),
+        margin=dict(t=30, b=0, l=0, r=0),
+    )
     st.plotly_chart(fig_div, use_container_width=True)
 
 with tab3:
     st.subheader("🎯 Progresso Rumo às Metas")
-    
-    # Substituído por Plotly para manter uniformidade visual moderna
+
     df_prog = df_carteira.sort_values(by="progresso_meta", ascending=True).copy()
     dois_menores = df_carteira["progresso_meta"].nsmallest(2).values.tolist()
 
     def definir_cor(row):
         if row["progresso_meta"] >= 100.0:
-            return "#2ec4b6"  # Verde (Meta Concluída / Stand-by)
+            return "#2ec4b6"
         elif row["progresso_meta"] in dois_menores:
-            return "#e63946"  # Vermelho (Focos de Aporte)
-        return "#ff9f1c"      # Amarelo (Em andamento)
+            return "#e63946"
+        return "#ff9f1c"
 
     df_prog["cor"] = df_prog.apply(definir_cor, axis=1)
 
@@ -445,6 +488,7 @@ with tab3:
             orientation="h",
             text=[f"{p:.1f}%" for p in df_prog["progresso_meta"]],
             textposition="outside",
+            textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
             marker=dict(color=df_prog["cor"]),
         )
     )
@@ -452,8 +496,9 @@ with tab3:
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(range=[0, 115], title="Conclusão (%)"),
-        yaxis=dict(title=""),
+        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        xaxis=dict(range=[0, 115], tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold"))),
+        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold")),
         margin=dict(t=20, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_prog_plotly, use_container_width=True)
@@ -482,15 +527,16 @@ with tab4:
             mode="lines+markers",
             name="Renda Mensal (R$)",
             line=dict(color="#2ec4b6", width=3),
-            marker=dict(size=6),
+            marker=dict(size=7, color="#2ec4b6"),
         )
     )
     fig_sim.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_title="Período",
-        yaxis_title="Provento Mensal (R$)",
+        font=dict(color="#ffffff", family="Inter", size=13, weight="bold"),
+        xaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold"))),
+        yaxis=dict(tickfont=dict(color="#ffffff", size=13, weight="bold"), title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold"))),
         margin=dict(t=30, b=0, l=0, r=0),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
