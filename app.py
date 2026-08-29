@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (DARK MODE TRADEMAP STYLE)
+# ESTILIZAÇÃO CSS CUSTOMIZADA (DARK MODE HIGH PERFORMANCE)
 # ------------------------------------------------------------------------------
 st.markdown(
     """
@@ -239,7 +239,7 @@ st.sidebar.header("💵 Configuração do Aporte")
 aporte_bolso = st.sidebar.number_input(
     "Aporte do Bolso (R$):",
     min_value=0.0,
-    value=1500.0,
+    value=1000.0,
     step=100.0,
     format="%.2f",
 )
@@ -304,7 +304,7 @@ col5.metric(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE
+# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE (PROTEGIDO CONTRA ERROS DE VALOR BAIXO)
 # ------------------------------------------------------------------------------
 meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 hoje = datetime.date.today()
@@ -320,48 +320,86 @@ df_pendentes = df_carteira[
     (df_carteira["progresso_meta"] < 100.0) & (df_carteira["valor_restante_meta"] > 0)
 ].sort_values(by="valor_restante_meta", ascending=False)
 
-if len(df_pendentes) >= 2:
+if len(df_pendentes) >= 1:
     fii_1 = df_pendentes.iloc[0]
-    fii_2 = df_pendentes.iloc[1]
+    preco_fii1 = fii_1["cotacao_atual"]
 
-    def1 = fii_1["valor_restante_meta"]
-    def2 = fii_2["valor_restante_meta"]
-    total_def = def1 + def2
-
-    pct1 = def1 / total_def if total_def > 0 else 0.5
-    pct2 = def2 / total_def if total_def > 0 else 0.5
-
-    val_fii1 = aporte_total_disponivel * pct1
-    val_fii2 = aporte_total_disponivel * pct2
-
-    cotas_fii1 = int(val_fii1 // fii_1["cotacao_atual"]) if fii_1["cotacao_atual"] > 0 else 0
-    cotas_fii2 = int(val_fii2 // fii_2["cotacao_atual"]) if fii_2["cotacao_atual"] > 0 else 0
-
-    gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
-    gasto_fii2 = cotas_fii2 * fii_2["cotacao_atual"]
-    sobra_troco = aporte_total_disponivel - (gasto_fii1 + gasto_fii2)
-
-    c_rec1, c_rec2, c_troco = st.columns(3)
-
-    with c_rec1:
-        st.error(
-            f"🎯 **1º Foco (Maior Déficit): {fii_1['fii']}**\n\n"
-            f"• **Déficit restante:** R$ {def1:,.2f} ({fii_1['cotas_faltantes']} cotas)\n"
-            f"• **Comprar:** **{cotas_fii1} cotas** (~R$ {fii_1['cotacao_atual']:.2f})\n"
-            f"• **Subtotal:** **R$ {gasto_fii1:,.2f}**"
+    # Verifica se o aporte disponível é suficiente para pelo menos 1 cota do 1º FII
+    if aporte_total_disponivel < preco_fii1:
+        st.warning(
+            f"⚠️ **Saldo insuficiente para comprar 1 cota de {fii_1['fii']}.**\n\n"
+            f"• Cotação atual de {fii_1['fii']}: **R$ {preco_fii1:.2f}**\n"
+            f"• Saldo atual disponível: **R$ {aporte_total_disponivel:.2f}**\n\n"
+            f"💡 *Aumente o valor do bolso ou acumule o saldo para o próximo mês.*"
         )
+    else:
+        if len(df_pendentes) >= 2:
+            fii_2 = df_pendentes.iloc[1]
+            def1 = fii_1["valor_restante_meta"]
+            def2 = fii_2["valor_restante_meta"]
+            total_def = def1 + def2
 
-    with c_rec2:
-        st.error(
-            f"🎯 **2º Foco: {fii_2['fii']}**\n\n"
-            f"• **Déficit restante:** R$ {def2:,.2f} ({fii_2['cotas_faltantes']} cotas)\n"
-            f"• **Comprar:** **{cotas_fii2} cotas** (~R$ {fii_2['cotacao_atual']:.2f})\n"
-            f"• **Subtotal:** **R$ {gasto_fii2:,.2f}**"
-        )
+            pct1 = def1 / total_def if total_def > 0 else 0.5
+            pct2 = def2 / total_def if total_def > 0 else 0.5
 
-    with c_troco:
-        st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
-        st.caption("💡 **Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.**")
+            val_fii1 = aporte_total_disponivel * pct1
+            val_fii2 = aporte_total_disponivel * pct2
+
+            cotas_fii1 = int(val_fii1 // fii_1["cotacao_atual"]) if fii_1["cotacao_atual"] > 0 else 0
+            cotas_fii2 = int(val_fii2 // fii_2["cotacao_atual"]) if fii_2["cotacao_atual"] > 0 else 0
+
+            # Se a divisão der 0 cotas no FII2 devido ao valor ser baixo, redireciona para o FII1
+            if cotas_fii1 == 0 and cotas_fii2 == 0:
+                cotas_fii1 = int(aporte_total_disponivel // fii_1["cotacao_atual"])
+
+            gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
+            gasto_fii2 = cotas_fii2 * fii_2["cotacao_atual"]
+            sobra_troco = aporte_total_disponivel - (gasto_fii1 + gasto_fii2)
+
+            c_rec1, c_rec2, c_troco = st.columns(3)
+
+            with c_rec1:
+                st.error(
+                    f"🎯 **1º Foco (Maior Déficit): {fii_1['fii']}**\n\n"
+                    f"• **Déficit restante:** R$ {def1:,.2f} ({fii_1['cotas_faltantes']} cotas)\n"
+                    f"• **Comprar:** **{cotas_fii1} cotas** (~R$ {fii_1['cotacao_atual']:.2f})\n"
+                    f"• **Subtotal:** **R$ {gasto_fii1:,.2f}**"
+                )
+
+            with c_rec2:
+                if cotas_fii2 > 0:
+                    st.error(
+                        f"🎯 **2º Foco: {fii_2['fii']}**\n\n"
+                        f"• **Déficit restante:** R$ {def2:,.2f} ({fii_2['cotas_faltantes']} cotas)\n"
+                        f"• **Comprar:** **{cotas_fii2} cotas** (~R$ {fii_2['cotacao_atual']:.2f})\n"
+                        f"• **Subtotal:** **R$ {gasto_fii2:,.2f}**"
+                    )
+                else:
+                    st.info(
+                        f"ℹ️ **2º Foco: {fii_2['fii']}**\n\n"
+                        f"• Saldo insuficiente para dividir o aporte neste mês.\n"
+                        f"• Todo o aporte viável foi direcionado para **{fii_1['fii']}**."
+                    )
+
+            with c_troco:
+                st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
+                st.caption("💡 **Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.**")
+        else:
+            # Caso só exista 1 FII pendente
+            cotas_fii1 = int(aporte_total_disponivel // fii_1["cotacao_atual"])
+            gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
+            sobra_troco = aporte_total_disponivel - gasto_fii1
+
+            c_rec1, c_troco = st.columns(2)
+            with c_rec1:
+                st.error(
+                    f"🎯 **Único Foco Pendente: {fii_1['fii']}**\n\n"
+                    f"• **Déficit restante:** R$ {fii_1['valor_restante_meta']:,.2f} ({fii_1['cotas_faltantes']} cotas)\n"
+                    f"• **Comprar:** **{cotas_fii1} cotas** (~R$ {fii_1['cotacao_atual']:.2f})\n"
+                    f"• **Subtotal:** **R$ {gasto_fii1:,.2f}**"
+                )
+            with c_troco:
+                st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
 else:
     st.success("🎉 Todas as metas ativas da carteira foram atingidas!")
 
@@ -544,7 +582,7 @@ with tab3:
 with tab4:
     st.subheader("🔮 Simulação do Efeito Bola de Neve (Renda Reinvestida)")
 
-    sim_meses = min(24, max(12, meses_estimados))
+    sim_meses = min(24, max(12, meses_estimados if meses_estimados > 0 else 12))
     meses_proj = [f"Mês {m}" for m in range(0, sim_meses + 1)]
     renda_proj = []
 
