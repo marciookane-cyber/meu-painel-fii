@@ -241,7 +241,6 @@ df_carteira["valor_restante_meta"] = (
 
 
 def salvar_dados(df_para_salvar):
-    # Atualiza o estado da sessão local (memória do aplicativo)
     st.session_state["df_carteira_override"] = df_para_salvar.copy()
     
     df_salvar = df_para_salvar[[
@@ -254,10 +253,8 @@ def salvar_dados(df_para_salvar):
     ]].copy()
     
     try:
-        # Tenta persistir no Google Sheets caso haja credenciais
         conn.update(data=df_salvar)
     except Exception:
-        # Ignora falha de gravação remota se a planilha for pública (apenas leitura)
         pass
     
     return True
@@ -417,27 +414,31 @@ if fii_selecionado in df_carteira["fii"].values:
 else:
     cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
+key_cota = f"cota_{fii_selecionado}"
+key_pm = f"pm_{fii_selecionado}"
+key_prov = f"prov_{fii_selecionado}"
+key_acum = f"acum_{fii_selecionado}"
+
+if key_cota not in st.session_state:
+    st.session_state[key_cota] = cota_val
+if key_pm not in st.session_state:
+    st.session_state[key_pm] = pm_val
+if key_prov not in st.session_state:
+    st.session_state[key_prov] = prov_val
+if key_acum not in st.session_state:
+    st.session_state[key_acum] = acum_val
+
 nova_cota = st.sidebar.number_input(
-    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1, key=f"cota_{fii_selecionado}"
+    "Qtd Cotas Manual:", min_value=0, step=1, key=key_cota
 )
 novo_pm = st.sidebar.number_input(
-    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f", key=f"pm_{fii_selecionado}"
+    "Preço Médio (R$):", min_value=0.0, step=0.10, format="%.2f", key=key_pm
 )
 novo_provento = st.sidebar.number_input(
-    "Último Provento/Cota (R$):",
-    min_value=0.0,
-    value=prov_val,
-    step=0.01,
-    format="%.2f",
-    key=f"prov_{fii_selecionado}"
+    "Último Provento/Cota (R$):", min_value=0.0, step=0.01, format="%.2f", key=key_prov
 )
 novo_acumulado = st.sidebar.number_input(
-    "Total Proventos Recebidos (R$):",
-    min_value=0.0,
-    value=acum_val,
-    step=10.0,
-    format="%.2f",
-    key=f"acum_{fii_selecionado}"
+    "Total Proventos Recebidos (R$):", min_value=0.0, step=10.0, format="%.2f", key=key_acum
 )
 
 if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
@@ -458,7 +459,7 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
 
         salvar_dados(df_carteira)
-        st.sidebar.success(f"{fii_selecionado} atualizado na sessão!")
+        st.sidebar.success(f"✅ {fii_selecionado} salvo com sucesso!")
         st.rerun()
 
 # ------------------------------------------------------------------------------
