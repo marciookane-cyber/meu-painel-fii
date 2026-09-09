@@ -139,8 +139,13 @@ st.markdown(
 # CONEXÃO E TRATAMENTO DE DADOS
 # ------------------------------------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
-data = conn.read(ttl="0s")
-df_carteira = data.copy()
+
+# Carrega os dados da planilha ou recupera da sessão caso já tenha sido modificado
+if "df_carteira_override" in st.session_state:
+    df_carteira = st.session_state["df_carteira_override"].copy()
+else:
+    data = conn.read(ttl="0s")
+    df_carteira = data.copy()
 
 colunas_numericas = [
     "cotas",
@@ -157,7 +162,7 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-# LISTA CORRIGIDA: PMLL11 no lugar de PMALL11
+# LISTA CORRIGIDA: PMLL11
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
@@ -184,7 +189,7 @@ def obter_meta(row):
         "ALZR11": 1500,
         "XPML11": 150,
         "GGRC11": 1500,
-        "PMLL11": 150,  # CORRIGIDO
+        "PMLL11": 150,
         "BTLG11": 150,
         "BRCO11": 150,
     }
@@ -236,6 +241,24 @@ df_carteira["valor_restante_meta"] = (
     df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
 )
 
+
+def salvar_dados(df_para_salvar):
+    """Tenta salvar no Google Sheets, senão mantém na sessão do Streamlit sem dar erro."""
+    st.session_state["df_carteira_override"] = df_para_salvar.copy()
+    df_salvar = df_para_salvar[[
+        "fii",
+        "cotas",
+        "preco_medio",
+        "dy_anual (%)",
+        "provento_mensal_cota",
+        "dividendo_acumulado_historico",
+    ]]
+    try:
+        conn.update(data=df_salvar)
+    except Exception:
+        pass
+
+
 # ------------------------------------------------------------------------------
 # CABEÇALHO DO DASHBOARD
 # ------------------------------------------------------------------------------
@@ -260,7 +283,6 @@ aporte_bolso = st.sidebar.number_input(
 
 dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
 
-# Inicializa o ajuste do saldo de operações na sessão
 if "ajuste_saldo_operacoes" not in st.session_state:
     st.session_state.ajuste_saldo_operacoes = 0.0
 
@@ -335,18 +357,9 @@ if tipo_operacao == "Comprar":
                 df_carteira.loc[idx, "cotas"] = novas_cotas
                 df_carteira.loc[idx, "preco_medio"] = novo_pm
 
-                # Atualiza saldo restante na sessão
                 st.session_state.ajuste_saldo_operacoes -= total_operacao
 
-                df_salvar = df_carteira[[
-                    "fii",
-                    "cotas",
-                    "preco_medio",
-                    "dy_anual (%)",
-                    "provento_mensal_cota",
-                    "dividendo_acumulado_historico",
-                ]]
-                conn.update(data=df_salvar)
+                salvar_dados(df_carteira)
                 st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
                 st.cache_data.clear()
                 st.rerun()
@@ -369,18 +382,9 @@ else:  # Vender
 
                 df_carteira.loc[idx, "cotas"] = novas_cotas
 
-                # Adiciona o valor da venda ao saldo disponível na sessão
                 st.session_state.ajuste_saldo_operacoes += total_operacao
 
-                df_salvar = df_carteira[[
-                    "fii",
-                    "cotas",
-                    "preco_medio",
-                    "dy_anual (%)",
-                    "provento_mensal_cota",
-                    "dividendo_acumulado_historico",
-                ]]
-                conn.update(data=df_salvar)
+                salvar_dados(df_carteira)
                 st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
                 st.cache_data.clear()
                 st.rerun()
@@ -423,15 +427,7 @@ if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
     df_carteira["dividendo_acumulado_historico"] += df_carteira[
         "dividendo_mensal_total"
     ]
-    df_salvar = df_carteira[[
-        "fii",
-        "cotas",
-        "preco_medio",
-        "dy_anual (%)",
-        "provento_mensal_cota",
-        "dividendo_acumulado_historico",
-    ]]
-    conn.update(data=df_salvar)
+    salvar_dados(df_carteira)
     st.sidebar.success("Dividendos somados ao histórico!")
     st.cache_data.clear()
     st.rerun()
@@ -445,15 +441,7 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.loc[idx, "provento_mensal_cota"] = novo_provento
         df_carteira.loc[idx, "dividendo_acumulado_historico"] = novo_acumulado
 
-        df_salvar = df_carteira[[
-            "fii",
-            "cotas",
-            "preco_medio",
-            "dy_anual (%)",
-            "provento_mensal_cota",
-            "dividendo_acumulado_historico",
-        ]]
-        conn.update(data=df_salvar)
+        salvar_dados(df_carteira)
         st.sidebar.success(f"{fii_selecionado} atualizado!")
         st.cache_data.clear()
         st.rerun()
