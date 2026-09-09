@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import numpy as np
 import pandas as pd
@@ -18,8 +19,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Arquivo local para garantir a escrita caso a planilha do Google falhe
+# Arquivos de persistência local para garantir retenção mesmo reiniciando o app
 LOCAL_STORAGE_FILE = "carteira_backup_local.csv"
+SALDO_STORAGE_FILE = "saldo_config.json"
 
 # ------------------------------------------------------------------------------
 # ESTILIZAÇÃO CSS CUSTOMIZADA
@@ -126,7 +128,7 @@ st.markdown(
 )
 
 # ------------------------------------------------------------------------------
-# TRATAMENTO E CARREGAMENTO DE DADOS PERSISTENTES
+# CONEXÃO E GERENCIAMENTO DE CARTEIRA
 # ------------------------------------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -135,7 +137,6 @@ def carregar_dados_iniciais():
     if "df_carteira_override" in st.session_state:
         return st.session_state["df_carteira_override"].copy()
 
-    # Tenta carregar do backup local em disco se existir
     if os.path.exists(LOCAL_STORAGE_FILE):
         try:
             df_local = pd.read_csv(LOCAL_STORAGE_FILE)
@@ -145,7 +146,6 @@ def carregar_dados_iniciais():
         except Exception:
             pass
 
-    # Caso contrário lê do Google Sheets
     try:
         data = conn.read(ttl="0s")
         df_carteira = data.copy()
@@ -229,7 +229,7 @@ df_carteira["cotacao_atual"] = df_carteira.apply(
     axis=1,
 )
 
-# Cálculos da Carteira
+# Cálculos de Métricas
 df_carteira["patrimonio_atual"] = (
     df_carteira["cotas"] * df_carteira["cotacao_atual"]
 )
@@ -260,9 +260,56 @@ df_carteira["valor_restante_meta"] = (
     df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
 )
 
+dividendos_mes_total = float(df_carteira["dividendo_mensal_total"].sum())
+
+# ------------------------------------------------------------------------------
+# GERENCIAMENTO E PERSISTÊNCIA DO SALDO/CONFIGURAÇÃO
+# ------------------------------------------------------------------------------
+
+
+def carregar_config_saldo():
+    saldo_default = {
+        "valor_bolso": 1000.0,
+        "ajuste_operacoes": 0.0,
+        "saldo_calculado_override": None,
+    }
+    if os.path.exists(SALDO_STORAGE_FILE):
+        try:
+            with open(SALDO_STORAGE_FILE, "r") as f:
+                data = json.load(f)
+                return data
+        except Exception:
+            pass
+    return saldo_default
+
+
+def salvar_config_saldo(valor_bolso, ajuste_operacoes, saldo_override=None):
+    dados = {
+        "valor_bolso": float(valor_bolso),
+        "ajuste_operacoes": float(ajuste_operacoes),
+        "saldo_calculado_override": (
+            float(saldo_override) if saldo_override is not None else None
+        ),
+    }
+    try:
+        with open(SALDO_STORAGE_FILE, "w") as f:
+            json.dump(dados, f)
+    except Exception:
+        pass
+
+
+saldo_cfg = carregar_config_saldo()
+
+if "valor_bolso_custom" not in st.session_state:
+    st.session_state.valor_bolso_custom = saldo_cfg.get("valor_bolso", 1000.0)
+
+if "ajuste_saldo_operacoes" not in st.session_state:
+    st.session_state.ajuste_saldo_operacoes = saldo_cfg.get(
+        "ajuste_operacoes", 0.0
+    )
+
 
 def salvar_dados_permanente(df_para_salvar):
-    # 1. Salva no estado da sessão imediato
     st.session_state["df_carteira_override"] = df_para_salvar.copy()
 
     df_salvar = df_para_salvar[[
@@ -274,18 +321,20 @@ def salvar_dados_permanente(df_para_salvar):
         "dividendo_acumulado_historico",
     ]].copy()
 
-    # 2. Salva em arquivo local (Garante persistência permanente no computador/servidor)
     try:
         df_salvar.to_csv(LOCAL_STORAGE_FILE, index=False)
     except Exception:
         pass
 
-    # 3. Tenta salvar na planilha Google Sheets
     try:
         conn.update(data=df_salvar)
     except Exception:
         pass
 
+    salvar_config_saldo(
+        st.session_state.valor_bolso_custom,
+        st.session_state.ajuste_saldo_operacoes,
+    )
     return True
 
 
@@ -300,12 +349,9 @@ st.markdown(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# MENU LATERAL - CONFIGURAÇÃO E COMPRA/VENDA
+# MENU LATERAL - CONFIGURAÇÃO DE SALDO E OPERAÇÕES
 # ------------------------------------------------------------------------------
 st.sidebar.header("💵 Configuração do Aporte")
-
-if "valor_bolso_custom" not in st.session_state:
-    st.session_state.valor_bolso_custom = 1000.0
 
 aporte_bolso = st.sidebar.number_input(
     "Aporte do Bolso (R$):",
@@ -316,18 +362,26 @@ aporte_bolso = st.sidebar.number_input(
     key="input_bolso_val",
 )
 
-st.session_state.valor_bolso_custom = aporte_bolso
-
-dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
-
-if "ajuste_saldo_operacoes" not in st.session_state:
-    st.session_state.ajuste_saldo_operacoes = 0.0
+if aporte_bolso != st.session_state.valor_bolso_custom:
+    st.session_state.valor_bolso_custom = aporte_bolso
+    salvar_config_saldo(
+        st.session_state.valor_bolso_custom,
+        st.session_state.ajuste_saldo_operacoes,
+    )
 
 total_disponivel_inicial = (
-    aporte_bolso
+    st.session_state.valor_bolso_custom
     + dividendos_mes_total
     + st.session_state.ajuste_saldo_operacoes
 )
+
+st.sidebar.markdown(f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}")
+
+if st.sidebar.button("🔄 Resetar Saldo do Mês (Novo Mês)"):
+    st.session_state.ajuste_saldo_operacoes = 0.0
+    salvar_config_saldo(st.session_state.valor_bolso_custom, 0.0)
+    st.sidebar.success("Saldo reiniciado para o padrão do mês!")
+    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔁 Operações (Comprar / Vender)")
@@ -372,9 +426,6 @@ st.sidebar.markdown(f"**Total da Operação:** R$ {total_operacao:,.2f}")
 
 if tipo_operacao == "Comprar":
     saldo_restante_simulado = total_disponivel_inicial - total_operacao
-    st.sidebar.markdown(
-        f"**Saldo Disponível:** R$ {total_disponivel_inicial:,.2f}"
-    )
 
     if saldo_restante_simulado < 0:
         excedente = abs(saldo_restante_simulado)
@@ -396,23 +447,16 @@ if tipo_operacao == "Comprar":
             df_carteira.at[idx, "cotas"] = novas_cotas
             df_carteira.at[idx, "preco_medio"] = novo_pm
 
-            if saldo_restante_simulado < 0:
-                excedente = abs(saldo_restante_simulado)
-                st.session_state.valor_bolso_custom += excedente
-
+            # Desconta o valor gasto do ajuste de saldo e salva no disco
             st.session_state.ajuste_saldo_operacoes -= total_operacao
-
-            # Salva de forma permanente
             salvar_dados_permanente(df_carteira)
+
             st.sidebar.success(
                 f"Compra de {cotas_operacao} cotas de {fii_operacao} SALVA COM SUCESSO!"
             )
             st.rerun()
 
 else:  # Vender
-    saldo_apos_venda = total_disponivel_inicial + total_operacao
-    st.sidebar.markdown(f"**Novo Saldo:** R$ {saldo_apos_venda:,.2f}")
-
     if cotas_operacao > cotas_possuidas:
         st.sidebar.error(
             f"⚠️ Você possui apenas {cotas_possuidas} cotas para venda."
@@ -437,7 +481,7 @@ else:  # Vender
                 st.rerun()
 
 # ------------------------------------------------------------------------------
-# EDIÇÃO MANUAL E BACKUP DISCO/CSV
+# EDIÇÃO MANUAL E BACKUP
 # ------------------------------------------------------------------------------
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Atualização Manual & Backup")
@@ -455,10 +499,30 @@ if fii_selecionado in df_carteira["fii"].values:
 else:
     cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
-nova_cota = st.sidebar.number_input("Qtd Cotas Manual:", min_value=0, value=cota_val, step=1)
-novo_pm = st.sidebar.number_input("Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f")
-novo_provento = st.sidebar.number_input("Último Provento/Cota (R$):", min_value=0.0, value=prov_val, step=0.01, format="%.2f")
-novo_acumulado = st.sidebar.number_input("Total Proventos Recebidos (R$):", min_value=0.0, value=acum_val, step=10.0, format="%.2f")
+nova_cota = st.sidebar.number_input(
+    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1
+)
+novo_pm = st.sidebar.number_input(
+    "Preço Médio (R$):",
+    min_value=0.0,
+    value=pm_val,
+    step=0.10,
+    format="%.2f",
+)
+novo_provento = st.sidebar.number_input(
+    "Último Provento/Cota (R$):",
+    min_value=0.0,
+    value=prov_val,
+    step=0.01,
+    format="%.2f",
+)
+novo_acumulado = st.sidebar.number_input(
+    "Total Proventos Recebidos (R$):",
+    min_value=0.0,
+    value=acum_val,
+    step=10.0,
+    format="%.2f",
+)
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
     idx_list = df_carteira[df_carteira["fii"] == fii_selecionado].index
@@ -467,14 +531,15 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.at[idx, "cotas"] = int(nova_cota)
         df_carteira.at[idx, "preco_medio"] = float(novo_pm)
         df_carteira.at[idx, "provento_mensal_cota"] = float(novo_provento)
-        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
+        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(
+            novo_acumulado
+        )
 
         salvar_dados_permanente(df_carteira)
         st.sidebar.success(f"✅ {fii_selecionado} atualizado com sucesso!")
         st.rerun()
 
 st.sidebar.markdown("---")
-# Download de Backup Manual em CSV (Segurança Total de Dados)
 csv_download = df_carteira[[
     "fii",
     "cotas",
@@ -518,20 +583,30 @@ st.markdown("<br>", unsafe_allow_html=True)
 # PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE
 # ------------------------------------------------------------------------------
 meses = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
 ]
 hoje = datetime.date.today()
 mes_atual_nome = meses[hoje.month - 1]
 ano_atual = hoje.year
 
-aporte_total_disponivel = total_disponivel_inicial
+aporte_total_disponivel = max(0.0, total_disponivel_inicial)
 
 st.subheader(f"🎯 Sugestão de Aporte — {mes_atual_nome} / {ano_atual}")
 st.info(
     f"💰 **Total Disponível para Aporte:** **R$ {aporte_total_disponivel:,.2f}** "
-    f"(R$ {aporte_bolso:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} em proventos"
-    f"{f' + R$ {st.session_state.ajuste_saldo_operacoes:,.2f} de operações' if st.session_state.ajuste_saldo_operacoes != 0 else ''})"
+    f"(Base: R$ {st.session_state.valor_bolso_custom:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} proventos"
+    f"{f' | Ajuste de Operações: R$ {st.session_state.ajuste_saldo_operacoes:,.2f}' if st.session_state.ajuste_saldo_operacoes != 0 else ''})"
 )
 
 df_pendentes = df_carteira[
