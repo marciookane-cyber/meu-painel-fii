@@ -143,7 +143,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 if "df_carteira_override" in st.session_state:
     df_carteira = st.session_state["df_carteira_override"].copy()
 else:
-    data = conn.read(ttl="0s")
+    data = conn.read(ttl="60s")
     df_carteira = data.copy()
 
 colunas_numericas = [
@@ -164,7 +164,7 @@ for col in colunas_numericas:
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def obter_cotacoes_b3(tickers):
     dados = {}
     for t in tickers:
@@ -282,6 +282,8 @@ aporte_bolso = st.sidebar.number_input(
     format="%.2f",
     key="input_bolso_val"
 )
+
+# Atualiza em tempo real o valor digitado pelo usuário
 st.session_state.valor_bolso_custom = aporte_bolso
 
 dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
@@ -340,7 +342,7 @@ if tipo_operacao == "Comprar":
     
     if saldo_restante_simulado < 0:
         excedente = abs(saldo_restante_simulado)
-        st.sidebar.warning(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será ajustado automaticamente.")
+        st.sidebar.info(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será atualizado ao **Confirmar Compra**.")
     else:
         st.sidebar.success(f"💰 **Saldo Restante:** R$ {saldo_restante_simulado:,.2f}")
 
@@ -358,6 +360,7 @@ if tipo_operacao == "Comprar":
             df_carteira.loc[idx, "cotas"] = novas_cotas
             df_carteira.loc[idx, "preco_medio"] = novo_pm
 
+            # Apenas no clique de confirmação: atualiza o saldo do bolso caso exceda
             if saldo_restante_simulado < 0:
                 excedente = abs(saldo_restante_simulado)
                 st.session_state.valor_bolso_custom += excedente
@@ -366,7 +369,6 @@ if tipo_operacao == "Comprar":
 
             salvar_dados(df_carteira)
             st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
-            st.cache_data.clear()
             st.rerun()
 
 else:  # Vender
@@ -391,7 +393,6 @@ else:  # Vender
 
                 salvar_dados(df_carteira)
                 st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
-                st.cache_data.clear()
                 st.rerun()
 
 st.sidebar.markdown("---")
@@ -434,7 +435,6 @@ if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
     ]
     salvar_dados(df_carteira)
     st.sidebar.success("Dividendos somados ao histórico!")
-    st.cache_data.clear()
     st.rerun()
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
@@ -448,7 +448,6 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
 
         salvar_dados(df_carteira)
         st.sidebar.success(f"{fii_selecionado} atualizado!")
-        st.cache_data.clear()
         st.rerun()
 
 # ------------------------------------------------------------------------------
