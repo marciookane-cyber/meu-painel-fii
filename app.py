@@ -140,7 +140,6 @@ st.markdown(
 # ------------------------------------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Carrega os dados da planilha ou recupera da sessão caso já tenha sido modificado
 if "df_carteira_override" in st.session_state:
     df_carteira = st.session_state["df_carteira_override"].copy()
 else:
@@ -162,7 +161,6 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-# LISTA CORRIGIDA: PMLL11
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
@@ -243,7 +241,6 @@ df_carteira["valor_restante_meta"] = (
 
 
 def salvar_dados(df_para_salvar):
-    """Tenta salvar no Google Sheets, senão mantém na sessão do Streamlit sem dar erro."""
     st.session_state["df_carteira_override"] = df_para_salvar.copy()
     df_salvar = df_para_salvar[[
         "fii",
@@ -273,13 +270,19 @@ st.markdown("<br>", unsafe_allow_html=True)
 # MENU LATERAL - CONFIGURAÇÃO E COMPRA/VENDA
 # ------------------------------------------------------------------------------
 st.sidebar.header("💵 Configuração do Aporte")
+
+if "valor_bolso_custom" not in st.session_state:
+    st.session_state.valor_bolso_custom = 1000.0
+
 aporte_bolso = st.sidebar.number_input(
     "Aporte do Bolso (R$):",
     min_value=0.0,
-    value=1000.0,
+    value=st.session_state.valor_bolso_custom,
     step=100.0,
     format="%.2f",
+    key="input_bolso_val"
 )
+st.session_state.valor_bolso_custom = aporte_bolso
 
 dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
 
@@ -312,7 +315,7 @@ else:
     cotas_possuidas = 0
 
 valor_unidade = st.sidebar.number_input(
-    f"Valor da Unidade (R$):",
+    "Valor da Unidade (R$):",
     min_value=0.01,
     value=max(0.01, cotacao_default),
     step=0.10,
@@ -320,7 +323,7 @@ valor_unidade = st.sidebar.number_input(
 )
 
 cotas_operacao = st.sidebar.number_input(
-    f"Quantidade de Cotas:",
+    "Quantidade de Cotas:",
     min_value=1,
     value=1,
     step=1,
@@ -336,33 +339,35 @@ if tipo_operacao == "Comprar":
     st.sidebar.markdown(f"**Saldo Inicial Disponível:** R$ {total_disponivel_inicial:,.2f}")
     
     if saldo_restante_simulado < 0:
-        st.sidebar.error(f"⚠️ Saldo Insuficiente! (Faltam R$ {abs(saldo_restante_simulado):,.2f})")
+        excedente = abs(saldo_restante_simulado)
+        st.sidebar.warning(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será ajustado automaticamente.")
     else:
         st.sidebar.success(f"💰 **Saldo Restante:** R$ {saldo_restante_simulado:,.2f}")
 
     if st.sidebar.button("✅ Confirmar Compra"):
-        if saldo_restante_simulado < 0:
-            st.sidebar.error("Operação bloqueada por falta de saldo.")
-        else:
-            idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
-            if len(idx_list) > 0:
-                idx = idx_list[0]
-                pm_atual = float(df_carteira.loc[idx, "preco_medio"])
+        idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
+        if len(idx_list) > 0:
+            idx = idx_list[0]
+            pm_atual = float(df_carteira.loc[idx, "preco_medio"])
 
-                novas_cotas = cotas_possuidas + cotas_operacao
-                novo_pm = (
-                    (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
-                ) / novas_cotas
+            novas_cotas = cotas_possuidas + cotas_operacao
+            novo_pm = (
+                (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
+            ) / novas_cotas
 
-                df_carteira.loc[idx, "cotas"] = novas_cotas
-                df_carteira.loc[idx, "preco_medio"] = novo_pm
+            df_carteira.loc[idx, "cotas"] = novas_cotas
+            df_carteira.loc[idx, "preco_medio"] = novo_pm
 
-                st.session_state.ajuste_saldo_operacoes -= total_operacao
+            if saldo_restante_simulado < 0:
+                excedente = abs(saldo_restante_simulado)
+                st.session_state.valor_bolso_custom += excedente
 
-                salvar_dados(df_carteira)
-                st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
-                st.cache_data.clear()
-                st.rerun()
+            st.session_state.ajuste_saldo_operacoes -= total_operacao
+
+            salvar_dados(df_carteira)
+            st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
+            st.cache_data.clear()
+            st.rerun()
 
 else:  # Vender
     saldo_apos_venda = total_disponivel_inicial + total_operacao
