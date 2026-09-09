@@ -249,11 +249,13 @@ def salvar_dados(df_para_salvar):
         "dy_anual (%)",
         "provento_mensal_cota",
         "dividendo_acumulado_historico",
-    ]]
+    ]].copy()
     try:
         conn.update(data=df_salvar)
-    except Exception:
-        pass
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Erro ao salvar na planilha: {e}")
+        return False
 
 
 # ------------------------------------------------------------------------------
@@ -283,7 +285,6 @@ aporte_bolso = st.sidebar.number_input(
     key="input_bolso_val"
 )
 
-# Atualiza em tempo real o valor digitado pelo usuário
 st.session_state.valor_bolso_custom = aporte_bolso
 
 dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
@@ -342,7 +343,7 @@ if tipo_operacao == "Comprar":
     
     if saldo_restante_simulado < 0:
         excedente = abs(saldo_restante_simulado)
-        st.sidebar.info(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será atualizado ao **Confirmar Compra**.")
+        st.sidebar.info(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será ajustado ao **Confirmar Compra**.")
     else:
         st.sidebar.success(f"💰 **Saldo Restante:** R$ {saldo_restante_simulado:,.2f}")
 
@@ -357,10 +358,9 @@ if tipo_operacao == "Comprar":
                 (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
             ) / novas_cotas
 
-            df_carteira.loc[idx, "cotas"] = novas_cotas
-            df_carteira.loc[idx, "preco_medio"] = novo_pm
+            df_carteira.at[idx, "cotas"] = novas_cotas
+            df_carteira.at[idx, "preco_medio"] = novo_pm
 
-            # Apenas no clique de confirmação: atualiza o saldo do bolso caso exceda
             if saldo_restante_simulado < 0:
                 excedente = abs(saldo_restante_simulado)
                 st.session_state.valor_bolso_custom += excedente
@@ -387,7 +387,7 @@ else:  # Vender
                 idx = idx_list[0]
                 novas_cotas = cotas_possuidas - cotas_operacao
 
-                df_carteira.loc[idx, "cotas"] = novas_cotas
+                df_carteira.at[idx, "cotas"] = novas_cotas
 
                 st.session_state.ajuste_saldo_operacoes += total_operacao
 
@@ -395,9 +395,13 @@ else:  # Vender
                 st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
                 st.rerun()
 
+# ------------------------------------------------------------------------------
+# ATUALIZAÇÃO MANUAL
+# ------------------------------------------------------------------------------
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Atualização Manual")
-fii_selecionado = st.sidebar.selectbox("FII para Edição Manual:", fiis)
+
+fii_selecionado = st.sidebar.selectbox("FII para Edição Manual:", fiis, key="select_fii_manual")
 
 if fii_selecionado in df_carteira["fii"].values:
     row = df_carteira[df_carteira["fii"] == fii_selecionado].iloc[0]
@@ -409,10 +413,10 @@ else:
     cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
 nova_cota = st.sidebar.number_input(
-    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1
+    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1, key=f"cota_{fii_selecionado}"
 )
 novo_pm = st.sidebar.number_input(
-    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f"
+    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f", key=f"pm_{fii_selecionado}"
 )
 novo_provento = st.sidebar.number_input(
     "Último Provento/Cota (R$):",
@@ -420,6 +424,7 @@ novo_provento = st.sidebar.number_input(
     value=prov_val,
     step=0.01,
     format="%.2f",
+    key=f"prov_{fii_selecionado}"
 )
 novo_acumulado = st.sidebar.number_input(
     "Total Proventos Recebidos (R$):",
@@ -427,28 +432,30 @@ novo_acumulado = st.sidebar.number_input(
     value=acum_val,
     step=10.0,
     format="%.2f",
+    key=f"acum_{fii_selecionado}"
 )
 
 if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
     df_carteira["dividendo_acumulado_historico"] += df_carteira[
         "dividendo_mensal_total"
     ]
-    salvar_dados(df_carteira)
-    st.sidebar.success("Dividendos somados ao histórico!")
-    st.rerun()
+    if salvar_dados(df_carteira):
+        st.sidebar.success("Dividendos somados ao histórico!")
+        st.rerun()
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
     idx_list = df_carteira[df_carteira["fii"] == fii_selecionado].index
     if len(idx_list) > 0:
         idx = idx_list[0]
-        df_carteira.loc[idx, "cotas"] = nova_cota
-        df_carteira.loc[idx, "preco_medio"] = novo_pm
-        df_carteira.loc[idx, "provento_mensal_cota"] = novo_provento
-        df_carteira.loc[idx, "dividendo_acumulado_historico"] = novo_acumulado
+        df_carteira.at[idx, "cotas"] = int(nova_cota)
+        df_carteira.at[idx, "preco_medio"] = float(novo_pm)
+        df_carteira.at[idx, "provento_mensal_cota"] = float(novo_provento)
+        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
 
-        salvar_dados(df_carteira)
-        st.sidebar.success(f"{fii_selecionado} atualizado!")
-        st.rerun()
+        se_salvou = salvar_dados(df_carteira)
+        if se_salvou:
+            st.sidebar.success(f"{fii_selecionado} atualizado!")
+            st.rerun()
 
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
