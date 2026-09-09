@@ -157,7 +157,8 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
+# LISTA CORRIGIDA: PMLL11 no lugar de PMALL11
+fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
 @st.cache_data(ttl=300)
@@ -183,7 +184,7 @@ def obter_meta(row):
         "ALZR11": 1500,
         "XPML11": 150,
         "GGRC11": 1500,
-        "PMALL11": 150,
+        "PMLL11": 150,  # CORRIGIDO
         "BTLG11": 150,
         "BRCO11": 150,
     }
@@ -278,14 +279,20 @@ tipo_operacao = st.sidebar.radio(
 
 fii_operacao = st.sidebar.selectbox("Selecione o FII:", fiis)
 
-row_op = df_carteira[df_carteira["fii"] == fii_operacao].iloc[0]
-cotacao_default = float(row_op["cotacao_atual"])
-cotas_possuidas = int(row_op["cotas"])
+df_fii_filtrado = df_carteira[df_carteira["fii"] == fii_operacao]
+
+if not df_fii_filtrado.empty:
+    row_op = df_fii_filtrado.iloc[0]
+    cotacao_default = float(row_op["cotacao_atual"])
+    cotas_possuidas = int(row_op["cotas"])
+else:
+    cotacao_default = 0.0
+    cotas_possuidas = 0
 
 valor_unidade = st.sidebar.number_input(
     f"Valor da Unidade (R$):",
     min_value=0.01,
-    value=cotacao_default,
+    value=max(0.01, cotacao_default),
     step=0.10,
     format="%.2f",
 )
@@ -315,32 +322,34 @@ if tipo_operacao == "Comprar":
         if saldo_restante_simulado < 0:
             st.sidebar.error("Operação bloqueada por falta de saldo.")
         else:
-            idx = df_carteira[df_carteira["fii"] == fii_operacao].index[0]
-            pm_atual = float(df_carteira.loc[idx, "preco_medio"])
+            idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
+            if len(idx_list) > 0:
+                idx = idx_list[0]
+                pm_atual = float(df_carteira.loc[idx, "preco_medio"])
 
-            novas_cotas = cotas_possuidas + cotas_operacao
-            novo_pm = (
-                (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
-            ) / novas_cotas
+                novas_cotas = cotas_possuidas + cotas_operacao
+                novo_pm = (
+                    (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
+                ) / novas_cotas
 
-            df_carteira.loc[idx, "cotas"] = novas_cotas
-            df_carteira.loc[idx, "preco_medio"] = novo_pm
+                df_carteira.loc[idx, "cotas"] = novas_cotas
+                df_carteira.loc[idx, "preco_medio"] = novo_pm
 
-            # Atualiza saldo restante na sessão
-            st.session_state.ajuste_saldo_operacoes -= total_operacao
+                # Atualiza saldo restante na sessão
+                st.session_state.ajuste_saldo_operacoes -= total_operacao
 
-            df_salvar = df_carteira[[
-                "fii",
-                "cotas",
-                "preco_medio",
-                "dy_anual (%)",
-                "provento_mensal_cota",
-                "dividendo_acumulado_historico",
-            ]]
-            conn.update(data=df_salvar)
-            st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
-            st.cache_data.clear()
-            st.rerun()
+                df_salvar = df_carteira[[
+                    "fii",
+                    "cotas",
+                    "preco_medio",
+                    "dy_anual (%)",
+                    "provento_mensal_cota",
+                    "dividendo_acumulado_historico",
+                ]]
+                conn.update(data=df_salvar)
+                st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
+                st.cache_data.clear()
+                st.rerun()
 
 else:  # Vender
     saldo_apos_venda = total_disponivel_inicial + total_operacao
@@ -353,27 +362,28 @@ else:  # Vender
         if cotas_operacao > cotas_possuidas:
             st.sidebar.error("Quantidade de venda maior do que o saldo de cotas existente.")
         else:
-            idx = df_carteira[df_carteira["fii"] == fii_operacao].index[0]
-            novas_cotas = cotas_possuidas - cotas_operacao
+            idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
+            if len(idx_list) > 0:
+                idx = idx_list[0]
+                novas_cotas = cotas_possuidas - cotas_operacao
 
-            df_carteira.loc[idx, "cotas"] = novas_cotas
-            # O preço médio permanece o mesmo na venda parcial
+                df_carteira.loc[idx, "cotas"] = novas_cotas
 
-            # Adiciona o valor da venda ao saldo disponível na sessão
-            st.session_state.ajuste_saldo_operacoes += total_operacao
+                # Adiciona o valor da venda ao saldo disponível na sessão
+                st.session_state.ajuste_saldo_operacoes += total_operacao
 
-            df_salvar = df_carteira[[
-                "fii",
-                "cotas",
-                "preco_medio",
-                "dy_anual (%)",
-                "provento_mensal_cota",
-                "dividendo_acumulado_historico",
-            ]]
-            conn.update(data=df_salvar)
-            st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
-            st.cache_data.clear()
-            st.rerun()
+                df_salvar = df_carteira[[
+                    "fii",
+                    "cotas",
+                    "preco_medio",
+                    "dy_anual (%)",
+                    "provento_mensal_cota",
+                    "dividendo_acumulado_historico",
+                ]]
+                conn.update(data=df_salvar)
+                st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
+                st.cache_data.clear()
+                st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Atualização Manual")
@@ -427,24 +437,26 @@ if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
     st.rerun()
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
-    idx = df_carteira[df_carteira["fii"] == fii_selecionado].index[0]
-    df_carteira.loc[idx, "cotas"] = nova_cota
-    df_carteira.loc[idx, "preco_medio"] = novo_pm
-    df_carteira.loc[idx, "provento_mensal_cota"] = novo_provento
-    df_carteira.loc[idx, "dividendo_acumulado_historico"] = novo_acumulado
+    idx_list = df_carteira[df_carteira["fii"] == fii_selecionado].index
+    if len(idx_list) > 0:
+        idx = idx_list[0]
+        df_carteira.loc[idx, "cotas"] = nova_cota
+        df_carteira.loc[idx, "preco_medio"] = novo_pm
+        df_carteira.loc[idx, "provento_mensal_cota"] = novo_provento
+        df_carteira.loc[idx, "dividendo_acumulado_historico"] = novo_acumulado
 
-    df_salvar = df_carteira[[
-        "fii",
-        "cotas",
-        "preco_medio",
-        "dy_anual (%)",
-        "provento_mensal_cota",
-        "dividendo_acumulado_historico",
-    ]]
-    conn.update(data=df_salvar)
-    st.sidebar.success(f"{fii_selecionado} atualizado!")
-    st.cache_data.clear()
-    st.rerun()
+        df_salvar = df_carteira[[
+            "fii",
+            "cotas",
+            "preco_medio",
+            "dy_anual (%)",
+            "provento_mensal_cota",
+            "dividendo_acumulado_historico",
+        ]]
+        conn.update(data=df_salvar)
+        st.sidebar.success(f"{fii_selecionado} atualizado!")
+        st.cache_data.clear()
+        st.rerun()
 
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
