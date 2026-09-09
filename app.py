@@ -19,11 +19,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Arquivos de persistência local para garantir retenção mesmo reiniciando o app
 LOCAL_STORAGE_FILE = "carteira_backup_local.csv"
 SALDO_STORAGE_FILE = "saldo_config.json"
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (LAYOUT ORIGINAL ESCURO)
+# ESTILIZAÇÃO CSS CUSTOMIZADA
 # ------------------------------------------------------------------------------
 st.markdown(
     """
@@ -64,6 +65,26 @@ st.markdown(
         font-size: 1.65rem !important;
         font-weight: 900 !important;
         color: #ffffff !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #151922;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid #232936;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 42px;
+        border-radius: 8px;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+        border: none !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #232936 !important;
+        color: #00d092 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        font-weight: 900 !important;
     }
     [data-testid="stDataFrame"] {
         border: 1px solid #232936;
@@ -242,7 +263,7 @@ df_carteira["valor_restante_meta"] = (
 dividendos_mes_total = float(df_carteira["dividendo_mensal_total"].sum())
 
 # ------------------------------------------------------------------------------
-# GERENCIAMENTO E PERSISTÊNCIA DO SALDO
+# GERENCIAMENTO E PERSISTÊNCIA DO SALDO/CONFIGURAÇÃO
 # ------------------------------------------------------------------------------
 
 
@@ -250,20 +271,25 @@ def carregar_config_saldo():
     saldo_default = {
         "valor_bolso": 1000.0,
         "ajuste_operacoes": 0.0,
+        "saldo_calculado_override": None,
     }
     if os.path.exists(SALDO_STORAGE_FILE):
         try:
             with open(SALDO_STORAGE_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                return data
         except Exception:
             pass
     return saldo_default
 
 
-def salvar_config_saldo(valor_bolso, ajuste_operacoes):
+def salvar_config_saldo(valor_bolso, ajuste_operacoes, saldo_override=None):
     dados = {
         "valor_bolso": float(valor_bolso),
         "ajuste_operacoes": float(ajuste_operacoes),
+        "saldo_calculado_override": (
+            float(saldo_override) if saldo_override is not None else None
+        ),
     }
     try:
         with open(SALDO_STORAGE_FILE, "w") as f:
@@ -349,9 +375,7 @@ total_disponivel_inicial = (
     + st.session_state.ajuste_saldo_operacoes
 )
 
-st.sidebar.markdown(
-    f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}"
-)
+st.sidebar.markdown(f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}")
 
 if st.sidebar.button("🔄 Resetar Saldo do Mês (Novo Mês)"):
     st.session_state.ajuste_saldo_operacoes = 0.0
@@ -423,6 +447,7 @@ if tipo_operacao == "Comprar":
             df_carteira.at[idx, "cotas"] = novas_cotas
             df_carteira.at[idx, "preco_medio"] = novo_pm
 
+            # Desconta o valor gasto do ajuste de saldo e salva no disco
             st.session_state.ajuste_saldo_operacoes -= total_operacao
             salvar_dados_permanente(df_carteira)
 
@@ -540,12 +565,12 @@ dividendos_historico_total = df_carteira["dividendo_acumulado_historico"].sum()
 lucro_total = patrimonio_total - investido_total
 
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("PATRIMÔNIO TOTAL", f"R$ {patrimonio_total:,.2f}")
-col2.metric("TOTAL INVESTIDO", f"R$ {investido_total:,.2f}")
-col3.metric("PROVENTO MENSAL", f"R$ {dividendos_mes_total:,.2f}")
-col4.metric("PROVENTOS ACUMULADOS", f"R$ {dividendos_historico_total:,.2f}")
+col1.metric("Patrimônio Total", f"R$ {patrimonio_total:,.2f}")
+col2.metric("Total Investido", f"R$ {investido_total:,.2f}")
+col3.metric("Provento Mensal", f"R$ {dividendos_mes_total:,.2f}")
+col4.metric("Proventos Acumulados", f"R$ {dividendos_historico_total:,.2f}")
 col5.metric(
-    "LUCRO / VALORIZAÇÃO",
+    "Lucro / Valorização",
     f"R$ {lucro_total:,.2f}",
     delta=f"{(lucro_total / investido_total) * 100:.2f}%"
     if investido_total > 0
@@ -596,8 +621,8 @@ if len(df_pendentes) >= 1:
     if aporte_total_disponivel < preco_fii1:
         st.warning(
             f"⚠️ **Saldo insuficiente para comprar 1 cota de {fii_1['fii']}.**\n\n"
-            f"• **Cotação atual de {fii_1['fii']}: R$ {preco_fii1:.2f}**\n"
-            f"• **Saldo atual disponível: R$ {aporte_total_disponivel:.2f}**"
+            f"• Cotação atual de {fii_1['fii']}: **R$ {preco_fii1:.2f}**\n"
+            f"• Saldo atual disponível: **R$ {aporte_total_disponivel:.2f}**"
         )
     else:
         if len(df_pendentes) >= 2:
@@ -681,86 +706,7 @@ else:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS DO DASHBOARD (LAYOUT ORIGINAL CONTINUO)
-# ------------------------------------------------------------------------------
-st.subheader("📈 Análise Gráfica da Carteira")
-
-g_col1, g_col2 = st.columns(2)
-
-with g_col1:
-    fig_pizza = px.pie(
-        df_carteira,
-        names="fii",
-        values="patrimonio_atual",
-        title="Alocação Patrimonial por FII",
-        hole=0.4,
-        color_discrete_sequence=px.colors.qualitative.Set3,
-    )
-    fig_pizza.update_traces(
-        textposition="inside",
-        textinfo="percent+label",
-        hovertemplate="<b>%{label}</b><br>Patrimônio: R$ %{value:,.2f}<br>Percentual: %{percent}",
-    )
-    fig_pizza.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff"),
-        showlegend=True,
-    )
-    st.plotly_chart(fig_pizza, use_container_width=True)
-
-with g_col2:
-    fig_barras = go.Figure()
-    fig_barras.add_trace(
-        go.Bar(
-            x=df_carteira["fii"],
-            y=df_carteira["preco_medio"],
-            name="Preço Médio",
-            marker_color="#3b82f6",
-        )
-    )
-    fig_barras.add_trace(
-        go.Bar(
-            x=df_carteira["fii"],
-            y=df_carteira["cotacao_atual"],
-            name="Cotação Atual",
-            marker_color="#00d092",
-        )
-    )
-    fig_barras.update_layout(
-        title="Preço Médio vs. Cotação Atual",
-        barmode="group",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff"),
-        xaxis=dict(title="FII"),
-        yaxis=dict(title="Valor (R$)"),
-    )
-    st.plotly_chart(fig_barras, use_container_width=True)
-
-fig_metas = px.bar(
-    df_carteira,
-    x="fii",
-    y="progresso_meta",
-    title="Progresso das Metas de Cotas (%)",
-    text_auto=".1f",
-    labels={"fii": "FII", "progresso_meta": "Progresso (%)"},
-    color="progresso_meta",
-    color_continuous_scale="Greens",
-)
-fig_metas.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
-fig_metas.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#ffffff"),
-    yaxis=dict(range=[0, 120]),
-)
-st.plotly_chart(fig_metas, use_container_width=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ------------------------------------------------------------------------------
-# POSIÇÃO DETALHADA DA CARTEIRA (TABELA)
+# TABELA COMPLETA DE POSIÇÃO
 # ------------------------------------------------------------------------------
 st.subheader("📋 Posição Detalhada da Carteira")
 
