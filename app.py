@@ -23,7 +23,7 @@ LOCAL_STORAGE_FILE = "carteira_backup_local.csv"
 SALDO_STORAGE_FILE = "saldo_config.json"
 
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA (LAYOUT ORIGINAL ESCURO)
+# ESTILIZAÇÃO CSS CUSTOMIZADA
 # ------------------------------------------------------------------------------
 st.markdown(
     """
@@ -100,6 +100,24 @@ st.markdown(
         background-color: #00e6a1 !important;
         box-shadow: 0 4px 15px rgba(0, 208, 146, 0.4);
         color: #0b0e14 !important;
+    }
+    
+    /* Estilização das Abas (Tabs) no estilo da imagem */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        border-bottom: 1px solid #232936;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #151922;
+        border-radius: 6px 6px 0px 0px;
+        color: #ffffff !important;
+        padding: 10px 20px;
+        font-weight: bold;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #00d092 !important;
+        color: #0b0e14 !important;
+        font-weight: 900 !important;
     }
     </style>
     """,
@@ -681,81 +699,163 @@ else:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# GRÁFICOS INTERATIVOS DO DASHBOARD (LAYOUT ORIGINAL CONTINUO)
+# LAYOUT PADRONIZADO DOS GRÁFICOS (VISUAL EXATO DA IMAGEM)
 # ------------------------------------------------------------------------------
-st.subheader("📈 Análise Gráfica da Carteira")
+layout_grafico_imagem = dict(
+    paper_bgcolor="#0b0e14",
+    plot_bgcolor="#0b0e14",
+    font=dict(color="#ffffff", family="serif"),
+    margin=dict(t=50, b=50, l=60, r=40),
+    xaxis=dict(
+        visible=True,
+        showticklabels=True,
+        type="category",
+        color="#ffffff",
+        tickfont=dict(color="#ffffff", size=13, family="serif", weight="bold"),
+        title=dict(
+            text="FII", font=dict(color="#ffffff", size=14, weight="bold")
+        ),
+        showgrid=False,
+        zeroline=False,
+    ),
+    yaxis=dict(
+        visible=True,
+        showticklabels=True,
+        color="#ffffff",
+        tickfont=dict(color="#ffffff", size=12, family="serif", weight="bold"),
+        title=dict(
+            text="Total (R$)",
+            font=dict(color="#ffffff", size=14, weight="bold"),
+        ),
+        gridcolor="#1f2937",
+        gridwidth=1,
+        zeroline=False,
+    ),
+)
 
-g_col1, g_col2 = st.columns(2)
+# ------------------------------------------------------------------------------
+# GRÁFICOS INTERATIVOS ORGANIZADOS EM ABAS (TABS)
+# ------------------------------------------------------------------------------
+tab_rank, tab_prov, tab_metas, tab_neve = st.tabs([
+    "🏆 Ranking Histórico",
+    "💵 Proventos do Mês",
+    "🎯 Progresso das Metas",
+    "🔮 Bola de Neve",
+])
 
-with g_col1:
-    fig_pizza = px.pie(
-        df_carteira,
-        names="fii",
-        values="patrimonio_atual",
-        title="Alocação Patrimonial por FII",
-        hole=0.4,
-        color_discrete_sequence=px.colors.qualitative.Set3,
+with tab_rank:
+    st.subheader("🏆 Ranking de Dividendos Acumulados")
+    # Ordenado do maior para o menor valor
+    df_rank_div = df_carteira.sort_values(
+        by="dividendo_acumulado_historico", ascending=False
     )
-    fig_pizza.update_traces(
-        textposition="inside",
-        textinfo="percent+label",
-        hovertemplate="<b>%{label}</b><br>Patrimônio: R$ %{value:,.2f}<br>Percentual: %{percent}",
-    )
-    fig_pizza.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff"),
-        showlegend=True,
-    )
-    st.plotly_chart(fig_pizza, use_container_width=True)
 
-with g_col2:
-    fig_barras = go.Figure()
-    fig_barras.add_trace(
-        go.Bar(
-            x=df_carteira["fii"],
-            y=df_carteira["preco_medio"],
-            name="Preço Médio",
-            marker_color="#3b82f6",
+    fig_rank = px.bar(
+        df_rank_div,
+        x="fii",
+        y="dividendo_acumulado_historico",
+        labels={
+            "fii": "FII",
+            "dividendo_acumulado_historico": "Total (R$)",
+        },
+    )
+    fig_rank.update_traces(
+        marker_color="#00d092",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color="#ffffff", size=13, family="serif", weight="bold"),
+    )
+    fig_rank.update_layout(**layout_grafico_imagem)
+    st.plotly_chart(fig_rank, use_container_width=True)
+
+with tab_prov:
+    st.subheader("💵 Rendimento Estimado no Mês")
+    # Ordenado do maior para o menor valor
+    df_prov_sorted = df_carteira.sort_values(
+        by="dividendo_mensal_total", ascending=False
+    )
+
+    fig_prov = px.bar(
+        df_prov_sorted,
+        x="fii",
+        y="dividendo_mensal_total",
+        labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
+    )
+    fig_prov.update_traces(
+        marker_color="#00d092",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color="#ffffff", size=13, family="serif", weight="bold"),
+    )
+    layout_prov = layout_grafico_imagem.copy()
+    layout_prov["yaxis"]["title"]["text"] = "Rendimento (R$)"
+    fig_prov.update_layout(**layout_prov)
+    st.plotly_chart(fig_prov, use_container_width=True)
+
+with tab_metas:
+    st.subheader("🎯 Progresso Rumo às Metas por FII")
+    # Ordenado do maior para o menor progresso
+    df_metas_sorted = df_carteira.sort_values(
+        by="progresso_meta", ascending=False
+    )
+
+    fig_metas = px.bar(
+        df_metas_sorted,
+        x="fii",
+        y="progresso_meta",
+        labels={"fii": "FII", "progresso_meta": "Progresso (%)"},
+    )
+    fig_metas.update_traces(
+        marker_color="#00d092",
+        texttemplate="%{y:.1f}%",
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color="#ffffff", size=13, family="serif", weight="bold"),
+    )
+    layout_metas = layout_grafico_imagem.copy()
+    layout_metas["yaxis"]["title"]["text"] = "Progresso (%)"
+    fig_metas.update_layout(**layout_metas)
+    st.plotly_chart(fig_metas, use_container_width=True)
+
+with tab_neve:
+    st.subheader("🔮 Simulação do Efeito Bola de Neve (Reinvestimento)")
+
+    sim_meses = 24
+    meses_proj = [f"Mês {m}" for m in range(0, sim_meses + 1)]
+    renda_proj = []
+
+    renda_atual_sim = dividendos_mes_total
+    taxa_rendimento_media = (
+        (dividendos_mes_total / patrimonio_total)
+        if patrimonio_total > 0
+        else 0.008
+    )
+
+    for m in range(0, sim_meses + 1):
+        renda_proj.append(renda_atual_sim)
+        aporte_mes = st.session_state.valor_bolso_custom + renda_atual_sim
+        novos_dividendos = aporte_mes * taxa_rendimento_media
+        renda_atual_sim += novos_dividendos
+
+    fig_sim = go.Figure()
+    fig_sim.add_trace(
+        go.Scatter(
+            x=meses_proj,
+            y=renda_proj,
+            mode="lines+markers",
+            name="Renda Mensal (R$)",
+            line=dict(color="#00d092", width=3),
+            marker=dict(size=7, color="#00d092"),
         )
     )
-    fig_barras.add_trace(
-        go.Bar(
-            x=df_carteira["fii"],
-            y=df_carteira["cotacao_atual"],
-            name="Cotação Atual",
-            marker_color="#00d092",
-        )
-    )
-    fig_barras.update_layout(
-        title="Preço Médio vs. Cotação Atual",
-        barmode="group",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#ffffff"),
-        xaxis=dict(title="FII"),
-        yaxis=dict(title="Valor (R$)"),
-    )
-    st.plotly_chart(fig_barras, use_container_width=True)
 
-fig_metas = px.bar(
-    df_carteira,
-    x="fii",
-    y="progresso_meta",
-    title="Progresso das Metas de Cotas (%)",
-    text_auto=".1f",
-    labels={"fii": "FII", "progresso_meta": "Progresso (%)"},
-    color="progresso_meta",
-    color_continuous_scale="Greens",
-)
-fig_metas.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
-fig_metas.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#ffffff"),
-    yaxis=dict(range=[0, 120]),
-)
-st.plotly_chart(fig_metas, use_container_width=True)
+    layout_sim = layout_grafico_imagem.copy()
+    layout_sim["xaxis"]["title"]["text"] = "Período"
+    layout_sim["yaxis"]["title"]["text"] = "Provento Mensal (R$)"
+    fig_sim.update_layout(**layout_sim)
+    st.plotly_chart(fig_sim, use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
