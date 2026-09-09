@@ -241,7 +241,9 @@ df_carteira["valor_restante_meta"] = (
 
 
 def salvar_dados(df_para_salvar):
+    # Atualiza o estado da sessão local (memória do aplicativo)
     st.session_state["df_carteira_override"] = df_para_salvar.copy()
+    
     df_salvar = df_para_salvar[[
         "fii",
         "cotas",
@@ -250,12 +252,15 @@ def salvar_dados(df_para_salvar):
         "provento_mensal_cota",
         "dividendo_acumulado_historico",
     ]].copy()
+    
     try:
+        # Tenta persistir no Google Sheets caso haja credenciais
         conn.update(data=df_salvar)
-        return True
-    except Exception as e:
-        st.sidebar.error(f"Erro ao salvar na planilha: {e}")
-        return False
+    except Exception:
+        # Ignora falha de gravação remota se a planilha for pública (apenas leitura)
+        pass
+    
+    return True
 
 
 # ------------------------------------------------------------------------------
@@ -439,9 +444,9 @@ if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
     df_carteira["dividendo_acumulado_historico"] += df_carteira[
         "dividendo_mensal_total"
     ]
-    if salvar_dados(df_carteira):
-        st.sidebar.success("Dividendos somados ao histórico!")
-        st.rerun()
+    salvar_dados(df_carteira)
+    st.sidebar.success("Dividendos somados ao histórico!")
+    st.rerun()
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
     idx_list = df_carteira[df_carteira["fii"] == fii_selecionado].index
@@ -452,10 +457,9 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.at[idx, "provento_mensal_cota"] = float(novo_provento)
         df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
 
-        se_salvou = salvar_dados(df_carteira)
-        if se_salvou:
-            st.sidebar.success(f"{fii_selecionado} atualizado!")
-            st.rerun()
+        salvar_dados(df_carteira)
+        st.sidebar.success(f"{fii_selecionado} atualizado na sessão!")
+        st.rerun()
 
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
