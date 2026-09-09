@@ -204,11 +204,19 @@ df_carteira["cotacao_atual"] = df_carteira.apply(
     axis=1,
 )
 
-# Cálculos
-df_carteira["patrimonio_atual"] = df_carteira["cotas"] * df_carteira["cotacao_atual"]
-df_carteira["total_investido"] = df_carteira["cotas"] * df_carteira["preco_medio"]
-df_carteira["lucro_ganho_capital"] = df_carteira["patrimonio_atual"] - df_carteira["total_investido"]
-df_carteira["dividendo_mensal_total"] = df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
+# Cálculos da Carteira
+df_carteira["patrimonio_atual"] = (
+    df_carteira["cotas"] * df_carteira["cotacao_atual"]
+)
+df_carteira["total_investido"] = (
+    df_carteira["cotas"] * df_carteira["preco_medio"]
+)
+df_carteira["lucro_ganho_capital"] = (
+    df_carteira["patrimonio_atual"] - df_carteira["total_investido"]
+)
+df_carteira["dividendo_mensal_total"] = (
+    df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
+)
 
 df_carteira["dy_mensal_pct"] = df_carteira.apply(
     lambda r: (r["provento_mensal_cota"] / r["cotacao_atual"] * 100)
@@ -223,17 +231,22 @@ df_carteira["progresso_meta"] = df_carteira.apply(
 df_carteira["cotas_faltantes"] = df_carteira.apply(
     lambda r: max(0, int(r["meta"] - r["cotas"])), axis=1
 )
-df_carteira["valor_restante_meta"] = df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
+df_carteira["valor_restante_meta"] = (
+    df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
+)
 
 # ------------------------------------------------------------------------------
 # CABEÇALHO DO DASHBOARD
 # ------------------------------------------------------------------------------
 st.title("📊 DASHBOARD DE FIIs")
-st.markdown("**Acompanhamento patrimonial e recomendação inteligente de aportes • Projeto Equalização**")
+st.markdown(
+    "**Acompanhamento patrimonial e recomendação inteligente de aportes •"
+    " Projeto Equalização**"
+)
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# MENU LATERAL
+# MENU LATERAL - CONFIGURAÇÃO E COMPRA/VENDA
 # ------------------------------------------------------------------------------
 st.sidebar.header("💵 Configuração do Aporte")
 aporte_bolso = st.sidebar.number_input(
@@ -244,9 +257,127 @@ aporte_bolso = st.sidebar.number_input(
     format="%.2f",
 )
 
+dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
+
+# Inicializa o ajuste do saldo de operações na sessão
+if "ajuste_saldo_operacoes" not in st.session_state:
+    st.session_state.ajuste_saldo_operacoes = 0.0
+
+total_disponivel_inicial = (
+    aporte_bolso + dividendos_mes_total + st.session_state.ajuste_saldo_operacoes
+)
+
 st.sidebar.markdown("---")
-st.sidebar.header("⚙️ Atualizar Carteira")
-fii_selecionado = st.sidebar.selectbox("Selecione o FII:", fiis)
+st.sidebar.header("🔁 Operações (Comprar / Vender)")
+
+tipo_operacao = st.sidebar.radio(
+    "Tipo de Operação:",
+    ["Comprar", "Vender"],
+    horizontal=True,
+)
+
+fii_operacao = st.sidebar.selectbox("Selecione o FII:", fiis)
+
+row_op = df_carteira[df_carteira["fii"] == fii_operacao].iloc[0]
+cotacao_default = float(row_op["cotacao_atual"])
+cotas_possuidas = int(row_op["cotas"])
+
+valor_unidade = st.sidebar.number_input(
+    f"Valor da Unidade (R$):",
+    min_value=0.01,
+    value=cotacao_default,
+    step=0.10,
+    format="%.2f",
+)
+
+cotas_operacao = st.sidebar.number_input(
+    f"Quantidade de Cotas:",
+    min_value=1,
+    value=1,
+    step=1,
+)
+
+total_operacao = valor_unidade * cotas_operacao
+
+st.sidebar.markdown(f"**Cotas Atuais em Carteira:** {cotas_possuidas}")
+st.sidebar.markdown(f"**Total da Operação:** R$ {total_operacao:,.2f}")
+
+if tipo_operacao == "Comprar":
+    saldo_restante_simulado = total_disponivel_inicial - total_operacao
+    st.sidebar.markdown(f"**Saldo Inicial Disponível:** R$ {total_disponivel_inicial:,.2f}")
+    
+    if saldo_restante_simulado < 0:
+        st.sidebar.error(f"⚠️ Saldo Insuficiente! (Faltam R$ {abs(saldo_restante_simulado):,.2f})")
+    else:
+        st.sidebar.success(f"💰 **Saldo Restante:** R$ {saldo_restante_simulado:,.2f}")
+
+    if st.sidebar.button("✅ Confirmar Compra"):
+        if saldo_restante_simulado < 0:
+            st.sidebar.error("Operação bloqueada por falta de saldo.")
+        else:
+            idx = df_carteira[df_carteira["fii"] == fii_operacao].index[0]
+            pm_atual = float(df_carteira.loc[idx, "preco_medio"])
+
+            novas_cotas = cotas_possuidas + cotas_operacao
+            novo_pm = (
+                (cotas_possuidas * pm_atual) + (cotas_operacao * valor_unidade)
+            ) / novas_cotas
+
+            df_carteira.loc[idx, "cotas"] = novas_cotas
+            df_carteira.loc[idx, "preco_medio"] = novo_pm
+
+            # Atualiza saldo restante na sessão
+            st.session_state.ajuste_saldo_operacoes -= total_operacao
+
+            df_salvar = df_carteira[[
+                "fii",
+                "cotas",
+                "preco_medio",
+                "dy_anual (%)",
+                "provento_mensal_cota",
+                "dividendo_acumulado_historico",
+            ]]
+            conn.update(data=df_salvar)
+            st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
+            st.cache_data.clear()
+            st.rerun()
+
+else:  # Vender
+    saldo_apos_venda = total_disponivel_inicial + total_operacao
+    st.sidebar.markdown(f"**Novo Saldo Estimado:** R$ {saldo_apos_venda:,.2f}")
+
+    if cotas_operacao > cotas_possuidas:
+        st.sidebar.error(f"⚠️ Você possui apenas {cotas_possuidas} cotas para venda.")
+
+    if st.sidebar.button("🛑 Confirmar Venda"):
+        if cotas_operacao > cotas_possuidas:
+            st.sidebar.error("Quantidade de venda maior do que o saldo de cotas existente.")
+        else:
+            idx = df_carteira[df_carteira["fii"] == fii_operacao].index[0]
+            novas_cotas = cotas_possuidas - cotas_operacao
+
+            df_carteira.loc[idx, "cotas"] = novas_cotas
+            # O preço médio permanece o mesmo na venda parcial
+
+            # Adiciona o valor da venda ao saldo disponível na sessão
+            st.session_state.ajuste_saldo_operacoes += total_operacao
+
+            df_salvar = df_carteira[[
+                "fii",
+                "cotas",
+                "preco_medio",
+                "dy_anual (%)",
+                "provento_mensal_cota",
+                "dividendo_acumulado_historico",
+            ]]
+            conn.update(data=df_salvar)
+            st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
+            st.cache_data.clear()
+            st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.header("⚙️ Atualização Manual")
+fii_selecionado = st.sidebar.selectbox("FII para Edição Manual:", fiis)
 
 if fii_selecionado in df_carteira["fii"].values:
     row = df_carteira[df_carteira["fii"] == fii_selecionado].iloc[0]
@@ -257,37 +388,72 @@ if fii_selecionado in df_carteira["fii"].values:
 else:
     cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
-nova_cota = st.sidebar.number_input("Quantidade de Cotas:", min_value=0, value=cota_val, step=1)
-novo_pm = st.sidebar.number_input("Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f")
-novo_provento = st.sidebar.number_input("Último Provento/Cota (R$):", min_value=0.0, value=prov_val, step=0.01, format="%.2f")
-novo_acumulado = st.sidebar.number_input("Total Proventos Já Recebidos (R$):", min_value=0.0, value=acum_val, step=10.0, format="%.2f")
+nova_cota = st.sidebar.number_input(
+    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1
+)
+novo_pm = st.sidebar.number_input(
+    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f"
+)
+novo_provento = st.sidebar.number_input(
+    "Último Provento/Cota (R$):",
+    min_value=0.0,
+    value=prov_val,
+    step=0.01,
+    format="%.2f",
+)
+novo_acumulado = st.sidebar.number_input(
+    "Total Proventos Recebidos (R$):",
+    min_value=0.0,
+    value=acum_val,
+    step=10.0,
+    format="%.2f",
+)
 
 if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
-    df_carteira["dividendo_acumulado_historico"] += df_carteira["dividendo_mensal_total"]
-    df_salvar = df_carteira[["fii", "cotas", "preco_medio", "dy_anual (%)", "provento_mensal_cota", "dividendo_acumulado_historico"]]
+    df_carteira["dividendo_acumulado_historico"] += df_carteira[
+        "dividendo_mensal_total"
+    ]
+    df_salvar = df_carteira[[
+        "fii",
+        "cotas",
+        "preco_medio",
+        "dy_anual (%)",
+        "provento_mensal_cota",
+        "dividendo_acumulado_historico",
+    ]]
     conn.update(data=df_salvar)
     st.sidebar.success("Dividendos somados ao histórico!")
     st.cache_data.clear()
+    st.rerun()
 
-if st.sidebar.button("💾 Salvar Alterações Individuais"):
+if st.sidebar.button("💾 Salvar Edição Manual"):
     idx = df_carteira[df_carteira["fii"] == fii_selecionado].index[0]
     df_carteira.loc[idx, "cotas"] = nova_cota
     df_carteira.loc[idx, "preco_medio"] = novo_pm
     df_carteira.loc[idx, "provento_mensal_cota"] = novo_provento
     df_carteira.loc[idx, "dividendo_acumulado_historico"] = novo_acumulado
 
-    df_salvar = df_carteira[["fii", "cotas", "preco_medio", "dy_anual (%)", "provento_mensal_cota", "dividendo_acumulado_historico"]]
+    df_salvar = df_carteira[[
+        "fii",
+        "cotas",
+        "preco_medio",
+        "dy_anual (%)",
+        "provento_mensal_cota",
+        "dividendo_acumulado_historico",
+    ]]
     conn.update(data=df_salvar)
     st.sidebar.success(f"{fii_selecionado} atualizado!")
     st.cache_data.clear()
+    st.rerun()
 
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
 # ------------------------------------------------------------------------------
 patrimonio_total = df_carteira["patrimonio_atual"].sum()
 investido_total = df_carteira["total_investido"].sum()
-dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
-dividendos_historico_total = df_carteira["dividendo_acumulado_historico"].sum()
+dividendos_historico_total = df_carteira[
+    "dividendo_acumulado_historico"
+].sum()
 lucro_total = patrimonio_total - investido_total
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -298,39 +464,58 @@ col4.metric("Proventos Acumulados", f"R$ {dividendos_historico_total:,.2f}")
 col5.metric(
     "Lucro / Valorização",
     f"R$ {lucro_total:,.2f}",
-    delta=f"{(lucro_total / investido_total) * 100:.2f}%" if investido_total > 0 else "0%",
+    delta=f"{(lucro_total / investido_total) * 100:.2f}%"
+    if investido_total > 0
+    else "0%",
 )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE (PROTEGIDO CONTRA ERROS DE VALOR BAIXO)
+# PAINEL DE RECOMENDAÇÃO INTELIGENTE DE APORTE
 # ------------------------------------------------------------------------------
-meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+meses = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+]
 hoje = datetime.date.today()
 mes_atual_nome = meses[hoje.month - 1]
 ano_atual = hoje.year
 
-aporte_total_disponivel = aporte_bolso + dividendos_mes_total
+aporte_total_disponivel = total_disponivel_inicial
 
 st.subheader(f"🎯 Sugestão de Aporte — {mes_atual_nome} / {ano_atual}")
-st.info(f"💰 **Total Disponível para Aporte:** **R$ {aporte_total_disponivel:,.2f}** (R$ {aporte_bolso:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} em proventos)")
+st.info(
+    f"💰 **Total Disponível para Aporte:** **R$ {aporte_total_disponivel:,.2f}** "
+    f"(R$ {aporte_bolso:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} em proventos"
+    f"{f' + R$ {st.session_state.ajuste_saldo_operacoes:,.2f} de operações' if st.session_state.ajuste_saldo_operacoes != 0 else ''})"
+)
 
 df_pendentes = df_carteira[
-    (df_carteira["progresso_meta"] < 100.0) & (df_carteira["valor_restante_meta"] > 0)
+    (df_carteira["progresso_meta"] < 100.0)
+    & (df_carteira["valor_restante_meta"] > 0)
 ].sort_values(by="valor_restante_meta", ascending=False)
 
 if len(df_pendentes) >= 1:
     fii_1 = df_pendentes.iloc[0]
     preco_fii1 = fii_1["cotacao_atual"]
 
-    # Verifica se o aporte disponível é suficiente para pelo menos 1 cota do 1º FII
     if aporte_total_disponivel < preco_fii1:
         st.warning(
             f"⚠️ **Saldo insuficiente para comprar 1 cota de {fii_1['fii']}.**\n\n"
             f"• Cotação atual de {fii_1['fii']}: **R$ {preco_fii1:.2f}**\n"
             f"• Saldo atual disponível: **R$ {aporte_total_disponivel:.2f}**\n\n"
-            f"💡 *Aumente o valor do bolso ou acumule o saldo para o próximo mês.*"
+            "💡 *Aumente o valor do bolso ou acumule o saldo para o próximo mês.*"
         )
     else:
         if len(df_pendentes) >= 2:
@@ -345,12 +530,21 @@ if len(df_pendentes) >= 1:
             val_fii1 = aporte_total_disponivel * pct1
             val_fii2 = aporte_total_disponivel * pct2
 
-            cotas_fii1 = int(val_fii1 // fii_1["cotacao_atual"]) if fii_1["cotacao_atual"] > 0 else 0
-            cotas_fii2 = int(val_fii2 // fii_2["cotacao_atual"]) if fii_2["cotacao_atual"] > 0 else 0
+            cotas_fii1 = (
+                int(val_fii1 // fii_1["cotacao_atual"])
+                if fii_1["cotacao_atual"] > 0
+                else 0
+            )
+            cotas_fii2 = (
+                int(val_fii2 // fii_2["cotacao_atual"])
+                if fii_2["cotacao_atual"] > 0
+                else 0
+            )
 
-            # Se a divisão der 0 cotas no FII2 devido ao valor ser baixo, redireciona para o FII1
             if cotas_fii1 == 0 and cotas_fii2 == 0:
-                cotas_fii1 = int(aporte_total_disponivel // fii_1["cotacao_atual"])
+                cotas_fii1 = int(
+                    aporte_total_disponivel // fii_1["cotacao_atual"]
+                )
 
             gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
             gasto_fii2 = cotas_fii2 * fii_2["cotacao_atual"]
@@ -377,7 +571,7 @@ if len(df_pendentes) >= 1:
                 else:
                     st.info(
                         f"ℹ️ **2º Foco: {fii_2['fii']}**\n\n"
-                        f"• Saldo insuficiente para dividir o aporte neste mês.\n"
+                        "• Saldo insuficiente para dividir o aporte neste mês.\n"
                         f"• Todo o aporte viável foi direcionado para **{fii_1['fii']}**."
                     )
 
@@ -385,7 +579,6 @@ if len(df_pendentes) >= 1:
                 st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
                 st.caption("💡 **Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.**")
         else:
-            # Caso só exista 1 FII pendente
             cotas_fii1 = int(aporte_total_disponivel // fii_1["cotacao_atual"])
             gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
             sobra_troco = aporte_total_disponivel - gasto_fii1
@@ -411,9 +604,15 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.subheader("📈 Metas & Projeção Temporal")
 
 total_valor_restante = df_carteira["valor_restante_meta"].sum()
-meta_rendimento_mensal_final = (df_carteira["meta"] * df_carteira["provento_mensal_cota"]).sum()
+meta_rendimento_mensal_final = (
+    df_carteira["meta"] * df_carteira["provento_mensal_cota"]
+).sum()
 
-meses_estimados = int(np.ceil(total_valor_restante / aporte_total_disponivel)) if aporte_total_disponivel > 0 else 0
+meses_estimados = (
+    int(np.ceil(total_valor_restante / aporte_total_disponivel))
+    if aporte_total_disponivel > 0
+    else 0
+)
 anos_estimados = meses_estimados // 12
 meses_sobra = meses_estimados % 12
 
@@ -422,7 +621,9 @@ p_col1.metric("Valor para Finalizar Metas", f"R$ {total_valor_restante:,.2f}")
 p_col2.metric(
     "Prazo Estimado",
     f"{meses_estimados} meses",
-    delta=f"~{anos_estimados} ano(s) e {meses_sobra} mes(es)" if anos_estimados > 0 else None,
+    delta=f"~{anos_estimados} ano(s) e {meses_sobra} mes(es)"
+    if anos_estimados > 0
+    else None,
 )
 p_col3.metric(
     "Renda Mensal na Conclusão",
@@ -444,7 +645,9 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
     st.subheader("🏆 Ranking de Dividendos Acumulados")
-    df_rank_div = df_carteira.sort_values(by="dividendo_acumulado_historico", ascending=False)
+    df_rank_div = df_carteira.sort_values(
+        by="dividendo_acumulado_historico", ascending=False
+    )
 
     fig_rank = px.bar(
         df_rank_div,
@@ -486,7 +689,9 @@ with tab1:
 
 with tab2:
     st.subheader("💵 Rendimento Estimado no Mês")
-    df_div_sorted = df_carteira.sort_values(by="dividendo_mensal_total", ascending=False)
+    df_div_sorted = df_carteira.sort_values(
+        by="dividendo_mensal_total", ascending=False
+    )
 
     fig_div = px.bar(
         df_div_sorted,
@@ -529,7 +734,9 @@ with tab2:
 with tab3:
     st.subheader("🎯 Progresso Rumo às Metas")
 
-    df_prog = df_carteira.sort_values(by="progresso_meta", ascending=True).copy()
+    df_prog = df_carteira.sort_values(
+        by="progresso_meta", ascending=True
+    ).copy()
     dois_menores = df_carteira["progresso_meta"].nsmallest(2).values.tolist()
 
     def definir_cor(row):
@@ -587,7 +794,11 @@ with tab4:
     renda_proj = []
 
     renda_atual_sim = dividendos_mes_total
-    taxa_rendimento_media = (dividendos_mes_total / patrimonio_total) if patrimonio_total > 0 else 0.008
+    taxa_rendimento_media = (
+        (dividendos_mes_total / patrimonio_total)
+        if patrimonio_total > 0
+        else 0.008
+    )
 
     for m in range(0, sim_meses + 1):
         renda_proj.append(renda_atual_sim)
