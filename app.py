@@ -271,25 +271,20 @@ def carregar_config_saldo():
     saldo_default = {
         "valor_bolso": 1000.0,
         "ajuste_operacoes": 0.0,
-        "saldo_calculado_override": None,
     }
     if os.path.exists(SALDO_STORAGE_FILE):
         try:
             with open(SALDO_STORAGE_FILE, "r") as f:
-                data = json.load(f)
-                return data
+                return json.load(f)
         except Exception:
             pass
     return saldo_default
 
 
-def salvar_config_saldo(valor_bolso, ajuste_operacoes, saldo_override=None):
+def salvar_config_saldo(valor_bolso, ajuste_operacoes):
     dados = {
         "valor_bolso": float(valor_bolso),
         "ajuste_operacoes": float(ajuste_operacoes),
-        "saldo_calculado_override": (
-            float(saldo_override) if saldo_override is not None else None
-        ),
     }
     try:
         with open(SALDO_STORAGE_FILE, "w") as f:
@@ -375,7 +370,9 @@ total_disponivel_inicial = (
     + st.session_state.ajuste_saldo_operacoes
 )
 
-st.sidebar.markdown(f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}")
+st.sidebar.markdown(
+    f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}"
+)
 
 if st.sidebar.button("🔄 Resetar Saldo do Mês (Novo Mês)"):
     st.session_state.ajuste_saldo_operacoes = 0.0
@@ -447,7 +444,6 @@ if tipo_operacao == "Comprar":
             df_carteira.at[idx, "cotas"] = novas_cotas
             df_carteira.at[idx, "preco_medio"] = novo_pm
 
-            # Desconta o valor gasto do ajuste de saldo e salva no disco
             st.session_state.ajuste_saldo_operacoes -= total_operacao
             salvar_dados_permanente(df_carteira)
 
@@ -706,48 +702,127 @@ else:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# TABELA COMPLETA DE POSIÇÃO
+# VISUALIZAÇÕES E GRÁFICOS (RESTAURADOS)
 # ------------------------------------------------------------------------------
-st.subheader("📋 Posição Detalhada da Carteira")
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Posição Detalhada",
+    "🍩 Alocação Patrimonial",
+    "📈 Preço Médio vs. Atual",
+    "🎯 Progresso das Metas",
+])
 
-df_exibicao = df_carteira[[
-    "fii",
-    "cotas",
-    "meta",
-    "preco_medio",
-    "cotacao_atual",
-    "patrimonio_atual",
-    "provento_mensal_cota",
-    "dy_mensal_pct",
-    "dividendo_mensal_total",
-    "dividendo_acumulado_historico",
-    "progresso_meta",
-]].copy()
+with tab1:
+    st.subheader("📋 Posição Detalhada da Carteira")
 
-df_exibicao.columns = [
-    "FII",
-    "Cotas",
-    "Meta",
-    "Preço Médio (R$)",
-    "Cotação Atual (R$)",
-    "Patrimônio (R$)",
-    "Provento/Cota (R$)",
-    "Rendimento Mensal (%)",
-    "Rendimento Mensal (R$)",
-    "Dividendos Acumulados (R$)",
-    "Progresso (%)",
-]
+    df_exibicao = df_carteira[[
+        "fii",
+        "cotas",
+        "meta",
+        "preco_medio",
+        "cotacao_atual",
+        "patrimonio_atual",
+        "provento_mensal_cota",
+        "dy_mensal_pct",
+        "dividendo_mensal_total",
+        "dividendo_acumulado_historico",
+        "progresso_meta",
+    ]].copy()
 
-st.dataframe(
-    df_exibicao.style.format({
-        "Preço Médio (R$)": "R$ {:.2f}",
-        "Cotação Atual (R$)": "R$ {:.2f}",
-        "Patrimônio (R$)": "R$ {:.2f}",
-        "Provento/Cota (R$)": "R$ {:.2f}",
-        "Rendimento Mensal (%)": "{:.2f}%",
-        "Rendimento Mensal (R$)": "R$ {:.2f}",
-        "Dividendos Acumulados (R$)": "R$ {:.2f}",
-        "Progresso (%)": "{:.1f}%",
-    }),
-    use_container_width=True,
-)
+    df_exibicao.columns = [
+        "FII",
+        "Cotas",
+        "Meta",
+        "Preço Médio (R$)",
+        "Cotação Atual (R$)",
+        "Patrimônio (R$)",
+        "Provento/Cota (R$)",
+        "Rendimento Mensal (%)",
+        "Rendimento Mensal (R$)",
+        "Dividendos Acumulados (R$)",
+        "Progresso (%)",
+    ]
+
+    st.dataframe(
+        df_exibicao.style.format({
+            "Preço Médio (R$)": "R$ {:.2f}",
+            "Cotação Atual (R$)": "R$ {:.2f}",
+            "Patrimônio (R$)": "R$ {:.2f}",
+            "Provento/Cota (R$)": "R$ {:.2f}",
+            "Rendimento Mensal (%)": "{:.2f}%",
+            "Rendimento Mensal (R$)": "R$ {:.2f}",
+            "Dividendos Acumulados (R$)": "R$ {:.2f}",
+            "Progresso (%)": "{:.1f}%",
+        }),
+        use_container_width=True,
+    )
+
+with tab2:
+    st.subheader("🍩 Distribuição do Patrimônio por FII")
+    fig_pizza = px.pie(
+        df_carteira,
+        names="fii",
+        values="patrimonio_atual",
+        hole=0.4,
+        color_discrete_sequence=px.colors.qualitative.Set3,
+    )
+    fig_pizza.update_traces(
+        textposition="inside",
+        textinfo="percent+label",
+        hovertemplate="<b>%{label}</b><br>Patrimônio: R$ %{value:,.2f}<br>Percentual: %{percent}",
+    )
+    fig_pizza.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff"),
+        showlegend=True,
+    )
+    st.plotly_chart(fig_pizza, use_container_width=True)
+
+with tab3:
+    st.subheader("📈 Comparativo: Preço Médio vs. Cotação Atual")
+    fig_barras = go.Figure()
+    fig_barras.add_trace(
+        go.Bar(
+            x=df_carteira["fii"],
+            y=df_carteira["preco_medio"],
+            name="Preço Médio",
+            marker_color="#3b82f6",
+        )
+    )
+    fig_barras.add_trace(
+        go.Bar(
+            x=df_carteira["fii"],
+            y=df_carteira["cotacao_atual"],
+            name="Cotação Atual",
+            marker_color="#00d092",
+        )
+    )
+    fig_barras.update_layout(
+        barmode="group",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff"),
+        xaxis=dict(title="FII"),
+        yaxis=dict(title="Valor (R$)"),
+    )
+    st.plotly_chart(fig_barras, use_container_width=True)
+
+with tab4:
+    st.subheader("🎯 Acompanhamento de Metas de Cotas")
+    fig_metas = px.bar(
+        df_carteira,
+        x="fii",
+        y="progresso_meta",
+        text_auto=".1f",
+        labels={"fii": "FII", "progresso_meta": "Progresso (%)"},
+        color="progresso_meta",
+        color_continuous_scale="Greens",
+    )
+    fig_metas.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
+    fig_metas.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff"),
+        yaxis=dict(range=[0, 120]),
+    )
+    st.plotly_chart(fig_metas, use_container_width=True)
