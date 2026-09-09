@@ -1,6 +1,4 @@
 import datetime
-import json
-import os
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -19,29 +17,31 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Arquivos de persistência local para garantir retenção mesmo reiniciando o app
-LOCAL_STORAGE_FILE = "carteira_backup_local.csv"
-SALDO_STORAGE_FILE = "saldo_config.json"
-
 # ------------------------------------------------------------------------------
-# ESTILIZAÇÃO CSS CUSTOMIZADA
+# ESTILIZAÇÃO CSS CUSTOMIZADA (DARK MODE HIGH PERFORMANCE)
 # ------------------------------------------------------------------------------
 st.markdown(
     """
     <style>
+    /* Fundo Principal */
     .stApp {
         background-color: #0b0e14 !important;
         color: #ffffff !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
+    
+    /* Tipografia Branca e Negrito */
     h1, h2, h3, h4, h5, h6, p, label, span {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
+    
     h1 {
         font-weight: 900 !important;
         letter-spacing: -0.5px;
     }
+
+    /* Cards de Métricas */
     [data-testid="stMetric"] {
         background-color: #151922 !important;
         border: 1px solid #232936 !important;
@@ -66,6 +66,8 @@ st.markdown(
         font-weight: 900 !important;
         color: #ffffff !important;
     }
+
+    /* Estilização das Abas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #151922;
@@ -86,6 +88,8 @@ st.markdown(
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         font-weight: 900 !important;
     }
+
+    /* Tabela de Posições */
     [data-testid="stDataFrame"] {
         border: 1px solid #232936;
         border-radius: 12px;
@@ -101,6 +105,8 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 600 !important;
     }
+
+    /* Menu Lateral */
     [data-testid="stSidebar"] {
         background-color: #151922 !important;
         border-right: 1px solid #232936 !important;
@@ -109,6 +115,8 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
+
+    /* Botões */
     .stButton > button {
         border-radius: 8px;
         font-weight: 800 !important;
@@ -128,44 +136,15 @@ st.markdown(
 )
 
 # ------------------------------------------------------------------------------
-# CONEXÃO E GERENCIAMENTO DE CARTEIRA
+# CONEXÃO E TRATAMENTO DE DADOS
 # ------------------------------------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-
-def carregar_dados_iniciais():
-    if "df_carteira_override" in st.session_state:
-        return st.session_state["df_carteira_override"].copy()
-
-    if os.path.exists(LOCAL_STORAGE_FILE):
-        try:
-            df_local = pd.read_csv(LOCAL_STORAGE_FILE)
-            if not df_local.empty and "fii" in df_local.columns:
-                st.session_state["df_carteira_override"] = df_local.copy()
-                return df_local
-        except Exception:
-            pass
-
-    try:
-        data = conn.read(ttl="0s")
-        df_carteira = data.copy()
-    except Exception:
-        df_carteira = pd.DataFrame(
-            columns=[
-                "fii",
-                "cotas",
-                "preco_medio",
-                "dy_anual (%)",
-                "provento_mensal_cota",
-                "dividendo_acumulado_historico",
-            ]
-        )
-
-    st.session_state["df_carteira_override"] = df_carteira.copy()
-    return df_carteira
-
-
-df_carteira = carregar_dados_iniciais()
+if "df_carteira_override" in st.session_state:
+    df_carteira = st.session_state["df_carteira_override"].copy()
+else:
+    data = conn.read(ttl="60s")
+    df_carteira = data.copy()
 
 colunas_numericas = [
     "cotas",
@@ -185,7 +164,7 @@ for col in colunas_numericas:
 fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def obter_cotacoes_b3(tickers):
     dados = {}
     for t in tickers:
@@ -194,7 +173,7 @@ def obter_cotacoes_b3(tickers):
             info = yf.Ticker(ticker_b3).fast_info
             price = float(info.get("lastPrice", 0.0))
             dados[t] = price
-        except Exception:
+        except:
             dados[t] = 0.0
     return dados
 
@@ -229,7 +208,7 @@ df_carteira["cotacao_atual"] = df_carteira.apply(
     axis=1,
 )
 
-# Cálculos de Métricas
+# Cálculos da Carteira
 df_carteira["patrimonio_atual"] = (
     df_carteira["cotas"] * df_carteira["cotacao_atual"]
 )
@@ -260,58 +239,9 @@ df_carteira["valor_restante_meta"] = (
     df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
 )
 
-dividendos_mes_total = float(df_carteira["dividendo_mensal_total"].sum())
 
-# ------------------------------------------------------------------------------
-# GERENCIAMENTO E PERSISTÊNCIA DO SALDO/CONFIGURAÇÃO
-# ------------------------------------------------------------------------------
-
-
-def carregar_config_saldo():
-    saldo_default = {
-        "valor_bolso": 1000.0,
-        "ajuste_operacoes": 0.0,
-        "saldo_calculado_override": None,
-    }
-    if os.path.exists(SALDO_STORAGE_FILE):
-        try:
-            with open(SALDO_STORAGE_FILE, "r") as f:
-                data = json.load(f)
-                return data
-        except Exception:
-            pass
-    return saldo_default
-
-
-def salvar_config_saldo(valor_bolso, ajuste_operacoes, saldo_override=None):
-    dados = {
-        "valor_bolso": float(valor_bolso),
-        "ajuste_operacoes": float(ajuste_operacoes),
-        "saldo_calculado_override": (
-            float(saldo_override) if saldo_override is not None else None
-        ),
-    }
-    try:
-        with open(SALDO_STORAGE_FILE, "w") as f:
-            json.dump(dados, f)
-    except Exception:
-        pass
-
-
-saldo_cfg = carregar_config_saldo()
-
-if "valor_bolso_custom" not in st.session_state:
-    st.session_state.valor_bolso_custom = saldo_cfg.get("valor_bolso", 1000.0)
-
-if "ajuste_saldo_operacoes" not in st.session_state:
-    st.session_state.ajuste_saldo_operacoes = saldo_cfg.get(
-        "ajuste_operacoes", 0.0
-    )
-
-
-def salvar_dados_permanente(df_para_salvar):
+def salvar_dados(df_para_salvar):
     st.session_state["df_carteira_override"] = df_para_salvar.copy()
-
     df_salvar = df_para_salvar[[
         "fii",
         "cotas",
@@ -320,22 +250,12 @@ def salvar_dados_permanente(df_para_salvar):
         "provento_mensal_cota",
         "dividendo_acumulado_historico",
     ]].copy()
-
-    try:
-        df_salvar.to_csv(LOCAL_STORAGE_FILE, index=False)
-    except Exception:
-        pass
-
     try:
         conn.update(data=df_salvar)
-    except Exception:
-        pass
-
-    salvar_config_saldo(
-        st.session_state.valor_bolso_custom,
-        st.session_state.ajuste_saldo_operacoes,
-    )
-    return True
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Erro ao salvar na planilha: {e}")
+        return False
 
 
 # ------------------------------------------------------------------------------
@@ -349,9 +269,12 @@ st.markdown(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# MENU LATERAL - CONFIGURAÇÃO DE SALDO E OPERAÇÕES
+# MENU LATERAL - CONFIGURAÇÃO E COMPRA/VENDA
 # ------------------------------------------------------------------------------
 st.sidebar.header("💵 Configuração do Aporte")
+
+if "valor_bolso_custom" not in st.session_state:
+    st.session_state.valor_bolso_custom = 1000.0
 
 aporte_bolso = st.sidebar.number_input(
     "Aporte do Bolso (R$):",
@@ -359,29 +282,19 @@ aporte_bolso = st.sidebar.number_input(
     value=st.session_state.valor_bolso_custom,
     step=100.0,
     format="%.2f",
-    key="input_bolso_val",
+    key="input_bolso_val"
 )
 
-if aporte_bolso != st.session_state.valor_bolso_custom:
-    st.session_state.valor_bolso_custom = aporte_bolso
-    salvar_config_saldo(
-        st.session_state.valor_bolso_custom,
-        st.session_state.ajuste_saldo_operacoes,
-    )
+st.session_state.valor_bolso_custom = aporte_bolso
+
+dividendos_mes_total = df_carteira["dividendo_mensal_total"].sum()
+
+if "ajuste_saldo_operacoes" not in st.session_state:
+    st.session_state.ajuste_saldo_operacoes = 0.0
 
 total_disponivel_inicial = (
-    st.session_state.valor_bolso_custom
-    + dividendos_mes_total
-    + st.session_state.ajuste_saldo_operacoes
+    aporte_bolso + dividendos_mes_total + st.session_state.ajuste_saldo_operacoes
 )
-
-st.sidebar.markdown(f"**Saldo Disponível Atual:** R$ {total_disponivel_inicial:,.2f}")
-
-if st.sidebar.button("🔄 Resetar Saldo do Mês (Novo Mês)"):
-    st.session_state.ajuste_saldo_operacoes = 0.0
-    salvar_config_saldo(st.session_state.valor_bolso_custom, 0.0)
-    st.sidebar.success("Saldo reiniciado para o padrão do mês!")
-    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔁 Operações (Comprar / Vender)")
@@ -421,17 +334,18 @@ cotas_operacao = st.sidebar.number_input(
 
 total_operacao = valor_unidade * cotas_operacao
 
-st.sidebar.markdown(f"**Cotas Atuais:** {cotas_possuidas}")
+st.sidebar.markdown(f"**Cotas Atuais em Carteira:** {cotas_possuidas}")
 st.sidebar.markdown(f"**Total da Operação:** R$ {total_operacao:,.2f}")
 
 if tipo_operacao == "Comprar":
     saldo_restante_simulado = total_disponivel_inicial - total_operacao
-
+    st.sidebar.markdown(f"**Saldo Inicial Disponível:** R$ {total_disponivel_inicial:,.2f}")
+    
     if saldo_restante_simulado < 0:
         excedente = abs(saldo_restante_simulado)
-        st.sidebar.info(
-            f"ℹ️ Compra excede o saldo em R$ {excedente:,.2f}. Ajustando do bolso ao confirmar."
-        )
+        st.sidebar.info(f"ℹ️ A compra excede o saldo em R$ {excedente:,.2f}. O valor do bolso será ajustado ao **Confirmar Compra**.")
+    else:
+        st.sidebar.success(f"💰 **Saldo Restante:** R$ {saldo_restante_simulado:,.2f}")
 
     if st.sidebar.button("✅ Confirmar Compra"):
         idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
@@ -447,24 +361,26 @@ if tipo_operacao == "Comprar":
             df_carteira.at[idx, "cotas"] = novas_cotas
             df_carteira.at[idx, "preco_medio"] = novo_pm
 
-            # Desconta o valor gasto do ajuste de saldo e salva no disco
-            st.session_state.ajuste_saldo_operacoes -= total_operacao
-            salvar_dados_permanente(df_carteira)
+            if saldo_restante_simulado < 0:
+                excedente = abs(saldo_restante_simulado)
+                st.session_state.valor_bolso_custom += excedente
 
-            st.sidebar.success(
-                f"Compra de {cotas_operacao} cotas de {fii_operacao} SALVA COM SUCESSO!"
-            )
+            st.session_state.ajuste_saldo_operacoes -= total_operacao
+
+            salvar_dados(df_carteira)
+            st.sidebar.success(f"Compra de {cotas_operacao} cotas de {fii_operacao} realizada!")
             st.rerun()
 
 else:  # Vender
+    saldo_apos_venda = total_disponivel_inicial + total_operacao
+    st.sidebar.markdown(f"**Novo Saldo Estimado:** R$ {saldo_apos_venda:,.2f}")
+
     if cotas_operacao > cotas_possuidas:
-        st.sidebar.error(
-            f"⚠️ Você possui apenas {cotas_possuidas} cotas para venda."
-        )
+        st.sidebar.error(f"⚠️ Você possui apenas {cotas_possuidas} cotas para venda.")
 
     if st.sidebar.button("🛑 Confirmar Venda"):
         if cotas_operacao > cotas_possuidas:
-            st.sidebar.error("Quantidade inválida de venda.")
+            st.sidebar.error("Quantidade de venda maior do que o saldo de cotas existente.")
         else:
             idx_list = df_carteira[df_carteira["fii"] == fii_operacao].index
             if len(idx_list) > 0:
@@ -472,23 +388,20 @@ else:  # Vender
                 novas_cotas = cotas_possuidas - cotas_operacao
 
                 df_carteira.at[idx, "cotas"] = novas_cotas
+
                 st.session_state.ajuste_saldo_operacoes += total_operacao
 
-                salvar_dados_permanente(df_carteira)
-                st.sidebar.success(
-                    f"Venda de {cotas_operacao} cotas de {fii_operacao} SALVA COM SUCESSO!"
-                )
+                salvar_dados(df_carteira)
+                st.sidebar.success(f"Venda de {cotas_operacao} cotas de {fii_operacao} realizada!")
                 st.rerun()
 
 # ------------------------------------------------------------------------------
-# EDIÇÃO MANUAL E BACKUP
+# ATUALIZAÇÃO MANUAL
 # ------------------------------------------------------------------------------
 st.sidebar.markdown("---")
-st.sidebar.header("⚙️ Atualização Manual & Backup")
+st.sidebar.header("⚙️ Atualização Manual")
 
-fii_selecionado = st.sidebar.selectbox(
-    "FII para Edição Manual:", fiis, key="select_fii_manual"
-)
+fii_selecionado = st.sidebar.selectbox("FII para Edição Manual:", fiis, key="select_fii_manual")
 
 if fii_selecionado in df_carteira["fii"].values:
     row = df_carteira[df_carteira["fii"] == fii_selecionado].iloc[0]
@@ -500,14 +413,10 @@ else:
     cota_val, pm_val, prov_val, acum_val = 0, 0.0, 0.0, 0.0
 
 nova_cota = st.sidebar.number_input(
-    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1
+    "Qtd Cotas Manual:", min_value=0, value=cota_val, step=1, key=f"cota_{fii_selecionado}"
 )
 novo_pm = st.sidebar.number_input(
-    "Preço Médio (R$):",
-    min_value=0.0,
-    value=pm_val,
-    step=0.10,
-    format="%.2f",
+    "Preço Médio (R$):", min_value=0.0, value=pm_val, step=0.10, format="%.2f", key=f"pm_{fii_selecionado}"
 )
 novo_provento = st.sidebar.number_input(
     "Último Provento/Cota (R$):",
@@ -515,6 +424,7 @@ novo_provento = st.sidebar.number_input(
     value=prov_val,
     step=0.01,
     format="%.2f",
+    key=f"prov_{fii_selecionado}"
 )
 novo_acumulado = st.sidebar.number_input(
     "Total Proventos Recebidos (R$):",
@@ -522,7 +432,16 @@ novo_acumulado = st.sidebar.number_input(
     value=acum_val,
     step=10.0,
     format="%.2f",
+    key=f"acum_{fii_selecionado}"
 )
+
+if st.sidebar.button("📅 Virada de Mês: Somar Provento Mensal"):
+    df_carteira["dividendo_acumulado_historico"] += df_carteira[
+        "dividendo_mensal_total"
+    ]
+    if salvar_dados(df_carteira):
+        st.sidebar.success("Dividendos somados ao histórico!")
+        st.rerun()
 
 if st.sidebar.button("💾 Salvar Edição Manual"):
     idx_list = df_carteira[df_carteira["fii"] == fii_selecionado].index
@@ -531,37 +450,21 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.at[idx, "cotas"] = int(nova_cota)
         df_carteira.at[idx, "preco_medio"] = float(novo_pm)
         df_carteira.at[idx, "provento_mensal_cota"] = float(novo_provento)
-        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(
-            novo_acumulado
-        )
+        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
 
-        salvar_dados_permanente(df_carteira)
-        st.sidebar.success(f"✅ {fii_selecionado} atualizado com sucesso!")
-        st.rerun()
-
-st.sidebar.markdown("---")
-csv_download = df_carteira[[
-    "fii",
-    "cotas",
-    "preco_medio",
-    "dy_anual (%)",
-    "provento_mensal_cota",
-    "dividendo_acumulado_historico",
-]].to_csv(index=False).encode("utf-8")
-
-st.sidebar.download_button(
-    label="📥 Baixar Backup Atualizado (CSV)",
-    data=csv_download,
-    file_name="minha_carteira_fiis.csv",
-    mime="text/csv",
-)
+        se_salvou = salvar_dados(df_carteira)
+        if se_salvou:
+            st.sidebar.success(f"{fii_selecionado} atualizado!")
+            st.rerun()
 
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
 # ------------------------------------------------------------------------------
 patrimonio_total = df_carteira["patrimonio_atual"].sum()
 investido_total = df_carteira["total_investido"].sum()
-dividendos_historico_total = df_carteira["dividendo_acumulado_historico"].sum()
+dividendos_historico_total = df_carteira[
+    "dividendo_acumulado_historico"
+].sum()
 lucro_total = patrimonio_total - investido_total
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -600,13 +503,13 @@ hoje = datetime.date.today()
 mes_atual_nome = meses[hoje.month - 1]
 ano_atual = hoje.year
 
-aporte_total_disponivel = max(0.0, total_disponivel_inicial)
+aporte_total_disponivel = total_disponivel_inicial
 
 st.subheader(f"🎯 Sugestão de Aporte — {mes_atual_nome} / {ano_atual}")
 st.info(
     f"💰 **Total Disponível para Aporte:** **R$ {aporte_total_disponivel:,.2f}** "
-    f"(Base: R$ {st.session_state.valor_bolso_custom:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} proventos"
-    f"{f' | Ajuste de Operações: R$ {st.session_state.ajuste_saldo_operacoes:,.2f}' if st.session_state.ajuste_saldo_operacoes != 0 else ''})"
+    f"(R$ {aporte_bolso:,.2f} do bolso + R$ {dividendos_mes_total:,.2f} em proventos"
+    f"{f' + R$ {st.session_state.ajuste_saldo_operacoes:,.2f} de operações' if st.session_state.ajuste_saldo_operacoes != 0 else ''})"
 )
 
 df_pendentes = df_carteira[
@@ -622,7 +525,8 @@ if len(df_pendentes) >= 1:
         st.warning(
             f"⚠️ **Saldo insuficiente para comprar 1 cota de {fii_1['fii']}.**\n\n"
             f"• Cotação atual de {fii_1['fii']}: **R$ {preco_fii1:.2f}**\n"
-            f"• Saldo atual disponível: **R$ {aporte_total_disponivel:.2f}**"
+            f"• Saldo atual disponível: **R$ {aporte_total_disponivel:.2f}**\n\n"
+            "💡 *Aumente o valor do bolso ou acumule o saldo para o próximo mês.*"
         )
     else:
         if len(df_pendentes) >= 2:
@@ -684,7 +588,7 @@ if len(df_pendentes) >= 1:
 
             with c_troco:
                 st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
-                st.caption("💡 **Recomenda-se acumular para o próximo mês.**")
+                st.caption("💡 **Recomenda-se acumular ou reinvestir em FIIs de base R$ 10.**")
         else:
             cotas_fii1 = int(aporte_total_disponivel // fii_1["cotacao_atual"])
             gasto_fii1 = cotas_fii1 * fii_1["cotacao_atual"]
@@ -702,6 +606,252 @@ if len(df_pendentes) >= 1:
                 st.metric("Sobra de Troco", f"R$ {sobra_troco:.2f}")
 else:
     st.success("🎉 Todas as metas ativas da carteira foram atingidas!")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
+# PROJEÇÕES FUTURAS
+# ------------------------------------------------------------------------------
+st.subheader("📈 Metas & Projeção Temporal")
+
+total_valor_restante = df_carteira["valor_restante_meta"].sum()
+meta_rendimento_mensal_final = (
+    df_carteira["meta"] * df_carteira["provento_mensal_cota"]
+).sum()
+
+meses_estimados = (
+    int(np.ceil(total_valor_restante / aporte_total_disponivel))
+    if aporte_total_disponivel > 0
+    else 0
+)
+anos_estimados = meses_estimados // 12
+meses_sobra = meses_estimados % 12
+
+p_col1, p_col2, p_col3 = st.columns(3)
+p_col1.metric("Valor para Finalizar Metas", f"R$ {total_valor_restante:,.2f}")
+p_col2.metric(
+    "Prazo Estimado",
+    f"{meses_estimados} meses",
+    delta=f"~{anos_estimados} ano(s) e {meses_sobra} mes(es)"
+    if anos_estimados > 0
+    else None,
+)
+p_col3.metric(
+    "Renda Mensal na Conclusão",
+    f"R$ {meta_rendimento_mensal_final:,.2f}",
+    delta=f"+R$ {meta_rendimento_mensal_final - dividendos_mes_total:,.2f} /mês",
+)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
+# GRÁFICOS INTERATIVOS
+# ------------------------------------------------------------------------------
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🏆 Ranking Histórico",
+    "💵 Proventos do Mês",
+    "🎯 Progresso das Metas",
+    "🔮 Bola de Neve",
+])
+
+with tab1:
+    st.subheader("🏆 Ranking de Dividendos Acumulados")
+    df_rank_div = df_carteira.sort_values(
+        by="dividendo_acumulado_historico", ascending=False
+    )
+
+    fig_rank = px.bar(
+        df_rank_div,
+        x="fii",
+        y="dividendo_acumulado_historico",
+        labels={"fii": "FII", "dividendo_acumulado_historico": "Total (R$)"},
+    )
+    fig_rank.update_traces(
+        marker_color="#00d092",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+    )
+    fig_rank.update_layout(
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
+        margin=dict(t=50, b=50, l=50, r=20),
+        xaxis=dict(
+            visible=True,
+            showticklabels=True,
+            type="category",
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+        yaxis=dict(
+            visible=True,
+            showticklabels=True,
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Total (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+    )
+    st.plotly_chart(fig_rank, use_container_width=True)
+
+with tab2:
+    st.subheader("💵 Rendimento Estimado no Mês")
+    df_div_sorted = df_carteira.sort_values(
+        by="dividendo_mensal_total", ascending=False
+    )
+
+    fig_div = px.bar(
+        df_div_sorted,
+        x="fii",
+        y="dividendo_mensal_total",
+        labels={"fii": "FII", "dividendo_mensal_total": "Rendimento (R$)"},
+    )
+    fig_div.update_traces(
+        marker_color="#3b82f6",
+        texttemplate="R$ %{y:.2f}",
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+    )
+    fig_div.update_layout(
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
+        margin=dict(t=50, b=50, l=50, r=20),
+        xaxis=dict(
+            visible=True,
+            showticklabels=True,
+            type="category",
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            title=dict(text="FII", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+        yaxis=dict(
+            visible=True,
+            showticklabels=True,
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Rendimento (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+    )
+    st.plotly_chart(fig_div, use_container_width=True)
+
+with tab3:
+    st.subheader("🎯 Progresso Rumo às Metas")
+
+    df_prog = df_carteira.sort_values(
+        by="progresso_meta", ascending=True
+    ).copy()
+    dois_menores = df_carteira["progresso_meta"].nsmallest(2).values.tolist()
+
+    def definir_cor(row):
+        if row["progresso_meta"] >= 100.0:
+            return "#00d092"
+        elif row["progresso_meta"] in dois_menores:
+            return "#ef4444"
+        return "#f59e0b"
+
+    df_prog["cor"] = df_prog.apply(definir_cor, axis=1)
+
+    fig_prog_plotly = go.Figure(
+        go.Bar(
+            x=df_prog["progresso_meta"],
+            y=df_prog["fii"],
+            orientation="h",
+            text=[f"{p:.1f}%" for p in df_prog["progresso_meta"]],
+            textposition="outside",
+            cliponaxis=False,
+            textfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            marker=dict(color=df_prog["cor"]),
+        )
+    )
+    fig_prog_plotly.update_layout(
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
+        margin=dict(t=40, b=50, l=80, r=40),
+        xaxis=dict(
+            visible=True,
+            showticklabels=True,
+            range=[0, 120],
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Conclusão (%)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+        yaxis=dict(
+            visible=True,
+            showticklabels=True,
+            type="category",
+            dtick=1,
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=14, family="Inter", weight="bold"),
+            gridcolor="#232936",
+        ),
+    )
+    st.plotly_chart(fig_prog_plotly, use_container_width=True)
+
+with tab4:
+    st.subheader("🔮 Simulação do Efeito Bola de Neve (Renda Reinvestida)")
+
+    sim_meses = min(24, max(12, meses_estimados if meses_estimados > 0 else 12))
+    meses_proj = [f"Mês {m}" for m in range(0, sim_meses + 1)]
+    renda_proj = []
+
+    renda_atual_sim = dividendos_mes_total
+    taxa_rendimento_media = (
+        (dividendos_mes_total / patrimonio_total)
+        if patrimonio_total > 0
+        else 0.008
+    )
+
+    for m in range(0, sim_meses + 1):
+        renda_proj.append(renda_atual_sim)
+        aporte_mes = aporte_bolso + renda_atual_sim
+        novos_dividendos = aporte_mes * taxa_rendimento_media
+        renda_atual_sim += novos_dividendos
+
+    fig_sim = go.Figure()
+    fig_sim.add_trace(
+        go.Scatter(
+            x=meses_proj,
+            y=renda_proj,
+            mode="lines+markers",
+            name="Renda Mensal (R$)",
+            line=dict(color="#00d092", width=3),
+            marker=dict(size=7, color="#00d092"),
+        )
+    )
+    fig_sim.update_layout(
+        paper_bgcolor="#0b0e14",
+        plot_bgcolor="#0b0e14",
+        font=dict(color="#ffffff"),
+        margin=dict(t=40, b=50, l=50, r=20),
+        xaxis=dict(
+            visible=True,
+            showticklabels=True,
+            type="category",
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Período", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+        yaxis=dict(
+            visible=True,
+            showticklabels=True,
+            color="#ffffff",
+            tickfont=dict(color="#ffffff", size=13, family="Inter", weight="bold"),
+            title=dict(text="Provento Mensal (R$)", font=dict(color="#ffffff", size=14, weight="bold")),
+            gridcolor="#232936",
+        ),
+    )
+    st.plotly_chart(fig_sim, use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
