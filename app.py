@@ -250,8 +250,11 @@ df_carteira["dy_mensal_pct"] = df_carteira.apply(
 df_carteira["progresso_meta"] = df_carteira.apply(
     lambda r: (r["cotas"] / r["meta"] * 100) if r["meta"] > 0 else 100.0, axis=1
 )
-df_carteira["cotas_faltantes"] = df_carteira.apply(
-    lambda r: max(0, int(r["meta"] - r["cotas"])), axis=1
+df_carteira["cotas_faltantes"] = (
+    (df_carteira["meta"] - df_carteira["cotas"])
+    .clip(lower=0)
+    .astype(int)
+)
 )
 df_carteira["valor_restante_meta"] = (
     df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
