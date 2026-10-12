@@ -228,24 +228,14 @@ df_carteira["cotacao_atual"] = df_carteira.apply(
     axis=1,
 )
 
-# Cálculos de Métricas
-df_carteira["patrimonio_atual"] = (
-    df_carteira["cotas"] * df_carteira["cotacao_atual"]
-)
-df_carteira["total_investido"] = (
-    df_carteira["cotas"] * df_carteira["preco_medio"]
-)
-df_carteira["lucro_ganho_capital"] = (
-    df_carteira["patrimonio_atual"] - df_carteira["total_investido"]
-)
-df_carteira["dividendo_mensal_total"] = (
-    df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
-)
+# Cálculos de Métricas e colunas auxiliares garantidas
+df_carteira["patrimonio_atual"] = df_carteira["cotas"] * df_carteira["cotacao_atual"]
+df_carteira["total_investido"] = df_carteira["cotas"] * df_carteira["preco_medio"]
+df_carteira["lucro_ganho_capital"] = df_carteira["patrimonio_atual"] - df_carteira["total_investido"]
+df_carteira["dividendo_mensal_total"] = df_carteira["cotas"] * df_carteira["provento_mensal_cota"]
 
 df_carteira["dy_mensal_pct"] = df_carteira.apply(
-    lambda r: (r["provento_mensal_cota"] / r["cotacao_atual"] * 100)
-    if r["cotacao_atual"] > 0
-    else 0.0,
+    lambda r: (r["provento_mensal_cota"] / r["cotacao_atual"] * 100) if r["cotacao_atual"] > 0 else 0.0,
     axis=1,
 )
 
@@ -256,9 +246,7 @@ df_carteira["progresso_meta"] = df_carteira.apply(
 df_carteira["cotas_faltantes"] = (
     (df_carteira["meta"] - df_carteira["cotas"]).clip(lower=0).astype(int)
 )
-df_carteira["valor_restante_meta"] = (
-    df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
-)
+df_carteira["valor_restante_meta"] = df_carteira["cotas_faltantes"] * df_carteira["cotacao_atual"]
 
 dividendos_mes_total = float(df_carteira["dividendo_mensal_total"].sum())
 
@@ -299,9 +287,7 @@ if "valor_bolso_custom" not in st.session_state:
     st.session_state.valor_bolso_custom = saldo_cfg.get("valor_bolso", 1000.0)
 
 if "ajuste_saldo_operacoes" not in st.session_state:
-    st.session_state.ajuste_saldo_operacoes = saldo_cfg.get(
-        "ajuste_operacoes", 0.0
-    )
+    st.session_state.ajuste_saldo_operacoes = saldo_cfg.get("ajuste_operacoes", 0.0)
 
 
 def salvar_dados_permanente(df_para_salvar):
@@ -316,13 +302,11 @@ def salvar_dados_permanente(df_para_salvar):
         "dividendo_acumulado_historico",
     ]].copy()
 
-    # Salva no backup local CSV
     try:
         df_salvar.to_csv(LOCAL_STORAGE_FILE, index=False)
     except Exception:
         pass
 
-    # Salva na nuvem do Google Sheets
     try:
         conn.update(data=df_salvar)
     except Exception as e:
@@ -529,9 +513,7 @@ if st.sidebar.button("💾 Salvar Edição Manual"):
         df_carteira.at[idx, "cotas"] = int(nova_cota)
         df_carteira.at[idx, "preco_medio"] = float(novo_pm)
         df_carteira.at[idx, "provento_mensal_cota"] = float(novo_provento)
-        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(
-            novo_acumulado
-        )
+        df_carteira.at[idx, "dividendo_acumulado_historico"] = float(novo_acumulado)
 
         salvar_dados_permanente(df_carteira)
         st.sidebar.success(f"✅ {fii_selecionado} atualizado com sucesso!")
@@ -557,9 +539,9 @@ st.sidebar.download_button(
 # ------------------------------------------------------------------------------
 # CARDS DE PATRIMÔNIO (METRICS)
 # ------------------------------------------------------------------------------
-patrimonio_total = df_carteira["patrimonio_atual"].sum()
-investido_total = df_carteira["total_investido"].sum()
-dividendos_historico_total = df_carteira["dividendo_acumulado_historico"].sum()
+patrimonio_total = float(df_carteira["patrimonio_atual"].sum())
+investido_total = float(df_carteira["total_investido"].sum())
+dividendos_historico_total = float(df_carteira["dividendo_acumulado_historico"].sum())
 lucro_total = patrimonio_total - investido_total
 
 col1, col2, col3, col4, col5 = st.columns(5)
