@@ -130,7 +130,17 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados_iniciais():
     if "df_carteira_override" in st.session_state:
-        return st.session_state["df_carteira_override"].copy()
+        df_cached = st.session_state["df_carteira_override"].copy()
+        if not df_cached.empty and df_cached["cotas"].sum() > 0:
+            return df_cached
+
+    try:
+        data = conn.read(ttl="0s")
+        if not data.empty and "fii" in data.columns:
+            st.session_state["df_carteira_override"] = data.copy()
+            return data.copy()
+    except Exception:
+        pass
 
     if os.path.exists(LOCAL_STORAGE_FILE):
         try:
@@ -141,22 +151,16 @@ def carregar_dados_iniciais():
         except Exception:
             pass
 
-    try:
-        data = conn.read(worksheet="PCarteira_FIIs", ttl="0s")
-        df_carteira = data.copy()
-    except Exception:
-        df_carteira = pd.DataFrame(
-            columns=[
-                "fii",
-                "cotas",
-                "preco_medio",
-                "dy_anual (%)",
-                "provento_mensal_cota",
-                "dividendo_acumulado_historico",
-            ]
-        )
-
-    st.session_state["df_carteira_override"] = df_carteira.copy()
+    df_carteira = pd.DataFrame(
+        columns=[
+            "fii",
+            "cotas",
+            "preco_medio",
+            "dy_anual (%)",
+            "provento_mensal_cota",
+            "dividendo_acumulado_historico",
+        ]
+    )
     return df_carteira
 
 
@@ -177,7 +181,7 @@ for col in colunas_numericas:
             errors="coerce",
         ).fillna(0.0)
 
-fiis = ["ALZR11", "XPML11", "GGRC11", "PMALL11", "BTLG11", "BRCO11", "IRIM11"]
+fiis = ["ALZR11", "XPML11", "GGRC11", "PMLL11", "BTLG11", "BRCO11", "IRIM11"]
 
 
 @st.cache_data(ttl=300)
@@ -198,11 +202,12 @@ cotacoes_atuais = obter_cotacoes_b3(fiis)
 
 
 def obter_meta(row):
-    ticker = row["fii"]
+    ticker = str(row["fii"]).strip().upper()
     metas_fixas = {
         "ALZR11": 1500,
         "XPML11": 150,
         "GGRC11": 1500,
+        "PMLL11": 150,
         "PMALL11": 150,
         "BTLG11": 150,
         "BRCO11": 150,
