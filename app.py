@@ -142,7 +142,7 @@ def carregar_dados_iniciais():
             pass
 
     try:
-        data = conn.read(ttl="0s")
+        data = conn.read(worksheet="Página1", ttl="0s")
         df_carteira = data.copy()
     except Exception:
         df_carteira = pd.DataFrame(
