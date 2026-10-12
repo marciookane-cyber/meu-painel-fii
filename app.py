@@ -138,15 +138,29 @@ DADOS_BASE_INICIAIS = [
 ]
 
 def carregar_dados_iniciais():
+    if "df_carteira_override" in st.session_state:
+        return st.session_state["df_carteira_override"].copy()
+
     try:
         data = conn.read(ttl="0s")
         if not data.empty and "fii" in data.columns and len(data) > 0:
-            if pd.to_numeric(data["cotas"], errors="coerce").sum() > 0:
-                return data.copy()
+            st.session_state["df_carteira_override"] = data.copy()
+            return data.copy()
     except Exception:
         pass
 
-    return pd.DataFrame(DADOS_BASE_INICIAIS)
+    if os.path.exists(LOCAL_STORAGE_FILE):
+        try:
+            df_local = pd.read_csv(LOCAL_STORAGE_FILE)
+            if not df_local.empty and "fii" in df_local.columns:
+                st.session_state["df_carteira_override"] = df_local.copy()
+                return df_local.copy()
+        except Exception:
+            pass
+
+    df_def = pd.DataFrame(DADOS_BASE_INICIAIS)
+    st.session_state["df_carteira_override"] = df_def.copy()
+    return df_def
 
 
 df_carteira = carregar_dados_iniciais()
@@ -302,15 +316,17 @@ def salvar_dados_permanente(df_para_salvar):
         "dividendo_acumulado_historico",
     ]].copy()
 
+    # Salva no backup local CSV
     try:
         df_salvar.to_csv(LOCAL_STORAGE_FILE, index=False)
     except Exception:
         pass
 
+    # Salva na nuvem do Google Sheets
     try:
         conn.update(data=df_salvar)
-    except Exception:
-        pass
+    except Exception as e:
+        st.sidebar.error(f"Erro ao salvar na nuvem: {e}")
 
     salvar_config_saldo(
         st.session_state.valor_bolso_custom,
